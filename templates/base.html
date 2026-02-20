@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}TechRepair{% endblock %} — TechRepair</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --sidebar-width: 240px;
+      --sidebar-bg: #1a1f2e;
+      --sidebar-hover: #2d3448;
+      --sidebar-active: #3d4a6b;
+      --accent: #4f8ef7;
+    }
+    body { background: #f0f2f5; font-family: 'Segoe UI', sans-serif; }
+
+    /* Sidebar */
+    #sidebar {
+      width: var(--sidebar-width);
+      min-height: 100vh;
+      background: var(--sidebar-bg);
+      position: fixed;
+      top: 0; left: 0;
+      z-index: 1000;
+      transition: transform .25s ease;
+    }
+    #sidebar .brand {
+      padding: 1.4rem 1.2rem;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    #sidebar .brand h5 { color: #fff; margin: 0; font-weight: 700; font-size: 1.05rem; }
+    #sidebar .brand small { color: rgba(255,255,255,.45); font-size: .75rem; }
+    #sidebar .nav-label {
+      padding: .6rem 1.2rem .2rem;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: .08em;
+      color: rgba(255,255,255,.35);
+      text-transform: uppercase;
+    }
+    #sidebar .nav-link {
+      color: rgba(255,255,255,.7);
+      padding: .55rem 1.2rem;
+      border-radius: 0;
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      font-size: .88rem;
+      transition: background .15s, color .15s;
+    }
+    #sidebar .nav-link:hover { background: var(--sidebar-hover); color: #fff; }
+    #sidebar .nav-link.active { background: var(--sidebar-active); color: #fff; border-left: 3px solid var(--accent); }
+    #sidebar .nav-link .bi { font-size: 1rem; min-width: 18px; }
+
+    /* Main */
+    #main {
+      margin-left: var(--sidebar-width);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    #topbar {
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: .75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 900;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+    #topbar .page-title { font-size: 1.1rem; font-weight: 600; color: #1a1f2e; margin: 0; }
+    .content-area { padding: 1.75rem 1.5rem; flex: 1; }
+
+    /* Cards */
+    .stat-card { border: none; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); transition: transform .15s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-card .icon-wrap {
+      width: 52px; height: 52px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem;
+    }
+    .table-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); overflow: hidden; }
+    .table-card .table { margin-bottom: 0; }
+    .table-card .table thead th { background: #f8f9fb; font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+    .table tbody tr:last-child td { border-bottom: 0; }
+
+    /* Badges estados */
+    .badge-recibido { background: #dbeafe; color: #1d4ed8; }
+    .badge-diagnostico { background: #fef3c7; color: #92400e; }
+    .badge-en_reparacion { background: #e0e7ff; color: #3730a3; }
+    .badge-listo { background: #d1fae5; color: #065f46; }
+    .badge-entregado { background: #e5e7eb; color: #374151; }
+    .badge-cancelado { background: #fee2e2; color: #991b1b; }
+
+    /* Stock badges */
+    .stock-ok { color: #059669; }
+    .stock-bajo { color: #dc2626; }
+    .stock-warn { color: #d97706; }
+
+    /* Flash */
+    .flash-container { padding: 0 1.5rem; }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      #sidebar { transform: translateX(-100%); }
+      #sidebar.show { transform: translateX(0); }
+      #main { margin-left: 0; }
+    }
+
+    /* Form cards */
+    .form-card { background: #fff; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.07); padding: 1.75rem; }
+    .section-title { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin-bottom: .75rem; padding-bottom: .4rem; border-bottom: 1px solid #e5e7eb; }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav id="sidebar">
+  <div class="brand">
+    <h5><i class="bi bi-tools me-2" style="color:var(--accent)"></i>TechRepair</h5>
+    <small>Sistema de Gestión</small>
+  </div>
+  <div class="pt-2">
+    <div class="nav-label">Principal</div>
+    <a href="{{ url_for('dashboard.index') }}" class="nav-link {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i> Dashboard
+    </a>
+
+    <div class="nav-label mt-2">Gestión</div>
+    <a href="{{ url_for('clientes.index') }}" class="nav-link {% if request.blueprint == 'clientes' %}active{% endif %}">
+      <i class="bi bi-people"></i> Clientes
+    </a>
+    <a href="{{ url_for('productos.index') }}" class="nav-link {% if request.blueprint == 'productos' %}active{% endif %}">
+      <i class="bi bi-box-seam"></i> Productos y Servicios
+    </a>
+    <a href="{{ url_for('stock.index') }}" class="nav-link {% if request.blueprint == 'stock' %}active{% endif %}">
+      <i class="bi bi-archive"></i> Stock
+    </a>
+
+    <div class="nav-label mt-2">Operaciones</div>
+    <a href="{{ url_for('taller.index') }}" class="nav-link {% if request.blueprint == 'taller' %}active{% endif %}">
+      <i class="bi bi-wrench-adjustable"></i> Taller
+    </a>
+    <a href="{{ url_for('ventas.index') }}" class="nav-link {% if request.blueprint == 'ventas' %}active{% endif %}">
+      <i class="bi bi-cart3"></i> Ventas
+    </a>
+
+    <div class="nav-label mt-2">Finanzas</div>
+    <a href="{{ url_for('caja.index') }}" class="nav-link {% if request.blueprint == 'caja' %}active{% endif %}">
+      <i class="bi bi-cash-coin"></i> Caja
+    </a>
+    <a href="{{ url_for('contabilidad.index') }}" class="nav-link {% if request.blueprint == 'contabilidad' %}active{% endif %}">
+      <i class="bi bi-bar-chart-line"></i> Contabilidad
+    </a>
+  </div>
+</nav>
+
+<!-- Main content -->
+<div id="main">
+  <div id="topbar">
+    <button class="btn btn-sm btn-light d-md-none" onclick="document.getElementById('sidebar').classList.toggle('show')">
+      <i class="bi bi-list fs-5"></i>
+    </button>
+    <h1 class="page-title">{% block page_title %}Dashboard{% endblock %}</h1>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      {% block topbar_actions %}{% endblock %}
+    </div>
+  </div>
+
+  <div class="flash-container mt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+          <i class="bi bi-{% if category == 'success' %}check-circle{% elif category == 'danger' %}exclamation-triangle{% else %}info-circle{% endif %} me-2"></i>
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      {% endfor %}
+    {% endwith %}
+  </div>
+
+  <main class="content-area">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

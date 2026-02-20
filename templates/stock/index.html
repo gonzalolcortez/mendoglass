@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block title %}Stock{% endblock %}
+{% block page_title %}Stock{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('productos.nuevo_producto') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nuevo Producto
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3 d-flex gap-2 flex-wrap">
+  <a href="?filtro=todos" class="btn btn-sm {% if filtro == 'todos' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Todos</a>
+  <a href="?filtro=bajo" class="btn btn-sm {% if filtro == 'bajo' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+    <i class="bi bi-exclamation-triangle me-1"></i>Stock bajo
+  </a>
+  <a href="?filtro=ok" class="btn btn-sm {% if filtro == 'ok' %}btn-success{% else %}btn-outline-success{% endif %}">Stock OK</a>
+</div>
+
+<div class="table-card">
+  {% if productos %}
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Producto</th>
+        <th>Categoría</th>
+        <th class="text-center">Stock Actual</th>
+        <th class="text-center">Stock Mínimo</th>
+        <th class="text-center">Estado</th>
+        <th>P. Compra</th>
+        <th>P. Venta</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in productos %}
+    <tr>
+      <td class="fw-semibold">{{ p.nombre }}</td>
+      <td class="text-muted small">{{ p.categoria.nombre if p.categoria else '—' }}</td>
+      <td class="text-center">
+        <span class="fw-bold {% if p.stock_actual == 0 %}text-danger{% elif p.stock_bajo %}text-warning{% else %}text-success{% endif %}">
+          {{ p.stock_actual }}
+        </span>
+        <small class="text-muted">{{ p.unidad }}</small>
+      </td>
+      <td class="text-center text-muted">{{ p.stock_minimo }}</td>
+      <td class="text-center">
+        {% if p.stock_actual == 0 %}
+          <span class="badge bg-danger">Sin stock</span>
+        {% elif p.stock_bajo %}
+          <span class="badge bg-warning text-dark">Bajo</span>
+        {% else %}
+          <span class="badge bg-success">OK</span>
+        {% endif %}
+      </td>
+      <td>${{ "%.2f"|format(p.precio_compra) }}</td>
+      <td>${{ "%.2f"|format(p.precio_venta) }}</td>
+      <td>
+        <a href="{{ url_for('stock.ajuste', id=p.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">
+          <i class="bi bi-sliders me-1"></i>Ajustar
+        </a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-archive fs-1 d-block mb-2"></i>No hay productos para mostrar.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}Ajuste de Stock{% endblock %}
+{% block page_title %}Ajuste de Stock{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-5">
+    <div class="form-card">
+      <div class="mb-4">
+        <h5 class="mb-1">{{ producto.nombre }}</h5>
+        <span class="text-muted">Categoría: {{ producto.categoria.nombre if producto.categoria else '—' }}</span>
+        <div class="mt-2">
+          <span class="fs-4 fw-bold {% if producto.stock_actual == 0 %}text-danger{% elif producto.stock_bajo %}text-warning{% else %}text-success{% endif %}">
+            {{ producto.stock_actual }} {{ producto.unidad }}
+          </span>
+          <small class="text-muted ms-2">stock actual · mínimo: {{ producto.stock_minimo }}</small>
+        </div>
+      </div>
+
+      <form method="post">
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Tipo de ajuste</label>
+          <div class="d-flex gap-2 flex-wrap">
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="tipo" id="t_set" value="set" checked>
+              <label class="form-check-label" for="t_set">Establecer cantidad exacta</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="tipo" id="t_add" value="add">
+              <label class="form-check-label" for="t_add">Sumar (entrada)</label>
+            </div>
+            <div class="form-check form-check-inline">
+              <input class="form-check-input" type="radio" name="tipo" id="t_sub" value="sub">
+              <label class="form-check-label" for="t_sub">Restar (salida)</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-semibold">Cantidad</label>
+          <input type="number" name="cantidad" class="form-control" min="0" required
+                 value="{{ producto.stock_actual }}">
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Aplicar</button>
+          <a href="{{ url_for('stock.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

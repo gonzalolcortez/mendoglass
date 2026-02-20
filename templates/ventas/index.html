@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}Ventas{% endblock %}
+{% block page_title %}Ventas{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('ventas.nueva') }}" class="btn btn-success btn-sm">
+  <i class="bi bi-cart-plus me-1"></i>Nueva Venta
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  {% if ventas %}
+  <table class="table table-hover">
+    <thead>
+      <tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th class="text-end">Subtotal</th><th class="text-end">Descuento</th><th class="text-end">Total</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for v in ventas %}
+    <tr>
+      <td class="fw-semibold text-primary">#{{ v.id }}</td>
+      <td class="small">{{ v.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td>{{ v.cliente.nombre_completo if v.cliente else 'Mostrador' }}</td>
+      <td>
+        {% for item in v.items %}
+        <div class="small">
+          {% if item.tipo == 'producto' %}{{ item.producto.nombre }}
+          {% else %}{{ item.servicio.nombre }}{% endif %}
+          × {{ item.cantidad }}
+        </div>
+        {% endfor %}
+      </td>
+      <td class="text-end">${{ "%.2f"|format(v.subtotal) }}</td>
+      <td class="text-end text-danger">{% if v.descuento %}-${{ "%.2f"|format(v.descuento) }}{% else %}—{% endif %}</td>
+      <td class="text-end fw-bold text-success">${{ "%.2f"|format(v.total) }}</td>
+      <td>
+        <form method="post" action="{{ url_for('ventas.eliminar', id=v.id) }}"
+              onsubmit="return confirm('¿Eliminar venta? El stock será devuelto.')">
+          <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-cart fs-1 d-block mb-2"></i>Sin ventas registradas.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

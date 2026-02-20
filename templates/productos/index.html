@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+{% block title %}Productos y Servicios{% endblock %}
+{% block page_title %}Productos y Servicios{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('productos.nuevo_producto') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nuevo Producto
+</a>
+<a href="{{ url_for('productos.nuevo_servicio') }}" class="btn btn-success btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nuevo Servicio
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'productos' %}active{% endif %}" href="?tab=productos">
+      <i class="bi bi-box-seam me-1"></i>Productos ({{ productos|length }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'servicios' %}active{% endif %}" href="?tab=servicios">
+      <i class="bi bi-gear me-1"></i>Servicios ({{ servicios|length }})
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'categorias' %}active{% endif %}" href="?tab=categorias">
+      <i class="bi bi-tags me-1"></i>Categorías
+    </a>
+  </li>
+</ul>
+
+{% if tab == 'productos' %}
+<div class="table-card">
+  {% if productos %}
+  <table class="table table-hover">
+    <thead><tr><th>Nombre</th><th>Categoría</th><th>Precio Compra</th><th>Precio Venta</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for p in productos %}
+    <tr class="{% if not p.activo %}table-secondary{% endif %}">
+      <td class="fw-semibold">{{ p.nombre }}</td>
+      <td>{{ p.categoria.nombre if p.categoria else '—' }}</td>
+      <td>${{ "%.2f"|format(p.precio_compra) }}</td>
+      <td class="fw-semibold">${{ "%.2f"|format(p.precio_venta) }}</td>
+      <td>
+        <span class="{% if p.stock_actual == 0 %}text-danger fw-bold{% elif p.stock_bajo %}text-warning fw-bold{% else %}text-success{% endif %}">
+          {{ p.stock_actual }} {{ p.unidad }}
+        </span>
+      </td>
+      <td>
+        {% if p.activo %}<span class="badge bg-success">Activo</span>
+        {% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}
+      </td>
+      <td class="text-end">
+        <a href="{{ url_for('stock.ajuste', id=p.id) }}" class="btn btn-sm btn-outline-info py-0 px-2">Stock</a>
+        <a href="{{ url_for('productos.editar_producto', id=p.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
+        <form method="post" action="{{ url_for('productos.eliminar_producto', id=p.id) }}" class="d-inline"
+              onsubmit="return confirm('¿Desactivar este producto?')">
+          <button class="btn btn-sm btn-outline-danger py-0 px-2">Desactivar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted"><i class="bi bi-box-seam fs-1 d-block mb-2"></i>Sin productos.</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'servicios' %}
+<div class="table-card">
+  {% if servicios %}
+  <table class="table table-hover">
+    <thead><tr><th>Nombre</th><th>Descripción</th><th>Precio</th><th>Estado</th><th></th></tr></thead>
+    <tbody>
+    {% for s in servicios %}
+    <tr class="{% if not s.activo %}table-secondary{% endif %}">
+      <td class="fw-semibold">{{ s.nombre }}</td>
+      <td class="text-muted small">{{ s.descripcion or '—' }}</td>
+      <td class="fw-semibold">${{ "%.2f"|format(s.precio) }}</td>
+      <td>{% if s.activo %}<span class="badge bg-success">Activo</span>
+          {% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}</td>
+      <td class="text-end">
+        <a href="{{ url_for('productos.editar_servicio', id=s.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
+        <form method="post" action="{{ url_for('productos.eliminar_servicio', id=s.id) }}" class="d-inline"
+              onsubmit="return confirm('¿Desactivar?')">
+          <button class="btn btn-sm btn-outline-danger py-0 px-2">Desactivar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted"><i class="bi bi-gear fs-1 d-block mb-2"></i>Sin servicios.</div>
+  {% endif %}
+</div>
+
+{% elif tab == 'categorias' %}
+<div class="row">
+  <div class="col-md-5">
+    <div class="form-card mb-3">
+      <div class="section-title">Nueva Categoría</div>
+      <form method="post" action="{{ url_for('productos.nueva_categoria') }}" class="d-flex gap-2">
+        <input type="text" name="nombre" class="form-control" placeholder="Nombre de categoría" required>
+        <button class="btn btn-primary">Agregar</button>
+      </form>
+    </div>
+  </div>
+  <div class="col-md-7">
+    <div class="table-card">
+      <table class="table">
+        <thead><tr><th>Nombre</th><th>Productos</th><th></th></tr></thead>
+        <tbody>
+        {% for c in categorias %}
+        <tr>
+          <td>{{ c.nombre }}</td>
+          <td><span class="badge bg-secondary">{{ c.productos|length }}</span></td>
+          <td class="text-end">
+            <form method="post" action="{{ url_for('productos.eliminar_categoria', id=c.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Eliminar?')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-2">Eliminar</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="text-muted text-center">Sin categorías.</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

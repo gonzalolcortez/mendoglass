@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}Caja{% endblock %}
+{% block page_title %}Caja{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('caja.nuevo') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nuevo Movimiento
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Resumen -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#d1fae5"><i class="bi bi-arrow-down-circle" style="color:#059669"></i></div>
+        <div>
+          <div class="text-muted small">Ingresos (filtro)</div>
+          <div class="fw-bold fs-5 text-success">${{ "%.2f"|format(total_ingresos) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#fee2e2"><i class="bi bi-arrow-up-circle" style="color:#dc2626"></i></div>
+        <div>
+          <div class="text-muted small">Egresos (filtro)</div>
+          <div class="fw-bold fs-5 text-danger">${{ "%.2f"|format(total_egresos) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#e0e7ff"><i class="bi bi-wallet2" style="color:#3730a3"></i></div>
+        <div>
+          <div class="text-muted small">Balance</div>
+          <div class="fw-bold fs-5 {% if balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+            ${{ "%.2f"|format(balance) }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filtros -->
+<div class="form-card mb-3">
+  <form method="get" class="row g-2 align-items-end">
+    <div class="col-sm-3">
+      <label class="form-label small fw-semibold">Desde</label>
+      <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ fecha_desde }}">
+    </div>
+    <div class="col-sm-3">
+      <label class="form-label small fw-semibold">Hasta</label>
+      <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ fecha_hasta }}">
+    </div>
+    <div class="col-sm-3">
+      <label class="form-label small fw-semibold">Tipo</label>
+      <select name="tipo" class="form-select form-select-sm">
+        <option value="">Todos</option>
+        <option value="ingreso" {% if tipo == 'ingreso' %}selected{% endif %}>Ingresos</option>
+        <option value="egreso" {% if tipo == 'egreso' %}selected{% endif %}>Egresos</option>
+      </select>
+    </div>
+    <div class="col-sm-3 d-flex gap-2">
+      <button class="btn btn-sm btn-secondary"><i class="bi bi-funnel"></i> Filtrar</button>
+      <a href="{{ url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+    </div>
+  </form>
+</div>
+
+<!-- Tabla movimientos -->
+<div class="table-card">
+  {% if movimientos %}
+  <table class="table table-hover">
+    <thead>
+      <tr><th>Fecha</th><th>Tipo</th><th>Concepto</th><th>Referencia</th><th class="text-end">Monto</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for m in movimientos %}
+    <tr>
+      <td class="small text-muted">{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td>
+        {% if m.tipo == 'ingreso' %}
+          <span class="badge" style="background:#d1fae5;color:#065f46"><i class="bi bi-arrow-down me-1"></i>Ingreso</span>
+        {% else %}
+          <span class="badge" style="background:#fee2e2;color:#991b1b"><i class="bi bi-arrow-up me-1"></i>Egreso</span>
+        {% endif %}
+      </td>
+      <td>{{ m.concepto }}</td>
+      <td class="small text-muted">
+        {% if m.referencia_tipo == 'taller' %}
+          <a href="{{ url_for('taller.detalle', id=m.referencia_id) }}" class="text-decoration-none">
+            <i class="bi bi-wrench me-1"></i>Taller #{{ m.referencia_id }}
+          </a>
+        {% elif m.referencia_tipo == 'venta' %}
+          <i class="bi bi-cart me-1"></i>Venta #{{ m.referencia_id }}
+        {% else %}
+          {{ m.referencia_tipo or '—' }}
+        {% endif %}
+      </td>
+      <td class="text-end fw-bold {% if m.tipo == 'ingreso' %}text-success{% else %}text-danger{% endif %}">
+        {% if m.tipo == 'egreso' %}-{% endif %}${{ "%.2f"|format(m.monto) }}
+      </td>
+      <td>
+        {% if m.referencia_tipo not in ['taller', 'venta'] %}
+        <form method="post" action="{{ url_for('caja.eliminar', id=m.id) }}"
+              onsubmit="return confirm('¿Eliminar movimiento?')">
+          <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-cash-coin fs-1 d-block mb-2"></i>Sin movimientos en el período seleccionado.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

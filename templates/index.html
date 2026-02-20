@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('taller.nuevo') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nueva Orden
+</a>
+<a href="{{ url_for('ventas.nueva') }}" class="btn btn-success btn-sm">
+  <i class="bi bi-cart-plus me-1"></i>Nueva Venta
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Stats row -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#dbeafe">
+          <i class="bi bi-arrow-down-circle" style="color:#1d4ed8"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Ingresos hoy</div>
+          <div class="fw-bold fs-5">${{ "%.2f"|format(ingresos_hoy) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#fee2e2">
+          <i class="bi bi-arrow-up-circle" style="color:#dc2626"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Egresos hoy</div>
+          <div class="fw-bold fs-5">${{ "%.2f"|format(egresos_hoy) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#e0e7ff">
+          <i class="bi bi-wrench-adjustable" style="color:#3730a3"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Reparaciones activas</div>
+          <div class="fw-bold fs-5">{{ reparaciones_activas }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-xl-3">
+    <div class="card stat-card h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#d1fae5">
+          <i class="bi bi-cart-check" style="color:#059669"></i>
+        </div>
+        <div>
+          <div class="text-muted small">Ventas hoy</div>
+          <div class="fw-bold fs-5">{{ ventas_hoy }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Últimas órdenes de taller -->
+  <div class="col-lg-7">
+    <div class="table-card">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold">Últimas órdenes de taller</span>
+        <a href="{{ url_for('taller.index') }}" class="btn btn-sm btn-outline-secondary">Ver todo</a>
+      </div>
+      {% if ultimos_talleres %}
+      <table class="table table-hover">
+        <thead><tr><th>#</th><th>Cliente</th><th>Equipo</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+        {% for t in ultimos_talleres %}
+        <tr>
+          <td class="fw-semibold text-primary">#{{ t.numero }}</td>
+          <td>{{ t.cliente.nombre_completo }}</td>
+          <td>{{ t.marca }} {{ t.modelo }}</td>
+          <td><span class="badge badge-{{ t.estado }}">{{ t.estado_display }}</span></td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-outline-primary btn-sm py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-4 text-center text-muted">No hay órdenes registradas.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Alertas stock + últimos movimientos -->
+  <div class="col-lg-5">
+    {% if productos_bajo_stock %}
+    <div class="table-card mb-3">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold text-danger"><i class="bi bi-exclamation-triangle me-1"></i>Stock bajo</span>
+        <a href="{{ url_for('stock.index', filtro='bajo') }}" class="btn btn-sm btn-outline-danger">Ver</a>
+      </div>
+      <table class="table">
+        <tbody>
+        {% for p in productos_bajo_stock[:5] %}
+        <tr>
+          <td>{{ p.nombre }}</td>
+          <td class="text-end">
+            <span class="badge {% if p.stock_actual == 0 %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+              {{ p.stock_actual }} {{ p.unidad }}
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+
+    <div class="table-card">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold">Últimos movimientos caja</span>
+        <a href="{{ url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Ver</a>
+      </div>
+      {% if ultimos_movimientos %}
+      <table class="table">
+        <tbody>
+        {% for m in ultimos_movimientos %}
+        <tr>
+          <td>
+            <i class="bi bi-{% if m.tipo == 'ingreso' %}arrow-down-circle text-success{% else %}arrow-up-circle text-danger{% endif %}"></i>
+            <span class="ms-1 small">{{ m.concepto[:35] }}{% if m.concepto|length > 35 %}…{% endif %}</span>
+          </td>
+          <td class="text-end fw-semibold {% if m.tipo == 'ingreso' %}text-success{% else %}text-danger{% endif %}">
+            {% if m.tipo == 'egreso' %}-{% endif %}${{ "%.2f"|format(m.monto) }}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-4 text-center text-muted small">Sin movimientos.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

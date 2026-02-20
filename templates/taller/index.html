@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Taller{% endblock %}
+{% block page_title %}Taller — Órdenes de Reparación{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('taller.nuevo') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-plus-lg me-1"></i>Nueva Orden
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Filtros -->
+<div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+  <form method="get" class="d-flex gap-2">
+    <input type="hidden" name="estado" value="{{ estado_filtro }}">
+    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Buscar cliente, marca…" style="max-width:220px">
+    <button class="btn btn-sm btn-secondary"><i class="bi bi-search"></i></button>
+  </form>
+  <a href="{{ url_for('taller.index') }}" class="btn btn-sm {% if not estado_filtro %}btn-secondary{% else %}btn-outline-secondary{% endif %}">Todos</a>
+  {% for val, label in estados %}
+  <a href="?estado={{ val }}" class="btn btn-sm btn-outline-secondary {% if estado_filtro == val %}active{% endif %}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+<div class="table-card">
+  {% if talleres %}
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>#</th><th>Cliente</th><th>Equipo</th><th>Problema</th>
+        <th>Ingreso</th><th>Estado</th><th>Total</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for t in talleres %}
+    <tr>
+      <td class="fw-bold text-primary">#{{ t.numero }}</td>
+      <td>{{ t.cliente.nombre_completo }}</td>
+      <td>{{ t.tipo_equipo }} <span class="text-muted">{{ t.marca }} {{ t.modelo }}</span></td>
+      <td class="text-muted small" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+        {{ t.descripcion_problema }}</td>
+      <td class="small">{{ t.fecha_ingreso.strftime('%d/%m/%Y') }}</td>
+      <td><span class="badge badge-{{ t.estado }}">{{ t.estado_display }}</span></td>
+      <td class="fw-semibold">${{ "%.2f"|format(t.total_final) }}</td>
+      <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-wrench-adjustable fs-1 d-block mb-2"></i>
+    No hay órdenes{% if estado_filtro %} con estado "{{ dict(estados)[estado_filtro] }}"{% endif %}.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
