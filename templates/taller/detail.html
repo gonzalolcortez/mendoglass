@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% block title %}Orden #{{ taller.numero }}{% endblock %}
+{% block page_title %}Orden de Taller #{{ taller.numero }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('taller.editar', id=taller.id) }}" class="btn btn-sm btn-outline-primary">
+  <i class="bi bi-pencil me-1"></i>Editar
+</a>
+{% if taller.estado != 'entregado' and taller.estado != 'cancelado' %}
+<form method="post" action="{{ url_for('taller.entregar', id=taller.id) }}" class="d-inline"
+      onsubmit="return confirm('¿Marcar como entregado y crear movimiento en Caja?')">
+  <button class="btn btn-sm btn-success"><i class="bi bi-check-circle me-1"></i>Entregado y Pago</button>
+</form>
+{% endif %}
+<form method="post" action="{{ url_for('taller.eliminar', id=taller.id) }}" class="d-inline"
+      onsubmit="return confirm('¿Eliminar esta orden? El stock será devuelto.')">
+  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Info principal -->
+  <div class="col-lg-4">
+    <div class="form-card mb-3">
+      <div class="section-title">Cliente</div>
+      <a href="{{ url_for('clientes.detalle', id=taller.cliente.id) }}" class="fw-semibold text-decoration-none">
+        {{ taller.cliente.nombre_completo }}
+      </a>
+      <div class="small text-muted mt-1">
+        {% if taller.cliente.telefono %}<i class="bi bi-telephone me-1"></i>{{ taller.cliente.telefono }}<br>{% endif %}
+        {% if taller.cliente.email %}<i class="bi bi-envelope me-1"></i>{{ taller.cliente.email }}{% endif %}
+      </div>
+    </div>
+
+    <div class="form-card mb-3">
+      <div class="section-title">Equipo</div>
+      <div class="fw-semibold">{{ taller.tipo_equipo or '—' }}</div>
+      <div class="text-muted">{{ taller.marca }} {{ taller.modelo }}</div>
+      <hr class="my-2">
+      <div class="small"><span class="text-muted">Problema:</span> {{ taller.descripcion_problema }}</div>
+      {% if taller.observaciones %}
+      <div class="small mt-2"><span class="text-muted">Obs.:</span> {{ taller.observaciones }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-card">
+      <div class="section-title">Detalles</div>
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="text-muted">Ingreso:</span>
+        <span>{{ taller.fecha_ingreso.strftime('%d/%m/%Y %H:%M') }}</span>
+      </div>
+      {% if taller.fecha_estimada_entrega %}
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="text-muted">Est. entrega:</span>
+        <span>{{ taller.fecha_estimada_entrega.strftime('%d/%m/%Y') }}</span>
+      </div>
+      {% endif %}
+      {% if taller.fecha_entrega %}
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="text-muted">Entregado:</span>
+        <span>{{ taller.fecha_entrega.strftime('%d/%m/%Y %H:%M') }}</span>
+      </div>
+      {% endif %}
+      {% if taller.tecnico %}
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="text-muted">Técnico:</span>
+        <span>{{ taller.tecnico }}</span>
+      </div>
+      {% endif %}
+      <div class="d-flex justify-content-between small mb-1">
+        <span class="text-muted">Costo estimado:</span>
+        <span>${{ "%.2f"|format(taller.costo_estimado) }}</span>
+      </div>
+      <hr class="my-2">
+      <div class="d-flex justify-content-between fw-bold">
+        <span>TOTAL:</span>
+        <span class="text-success fs-5">${{ "%.2f"|format(taller.total_final) }}</span>
+      </div>
+      <div class="mt-1">
+        <span class="badge badge-{{ taller.estado }} fs-6">{{ taller.estado_display }}</span>
+        {% if taller.pagado %}<span class="badge bg-success ms-1">Pagado</span>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Productos, servicios, estado -->
+  <div class="col-lg-8">
+    <!-- Cambiar estado rápido -->
+    {% if taller.estado not in ['entregado', 'cancelado'] %}
+    <div class="form-card mb-3">
+      <div class="section-title">Cambiar Estado</div>
+      <form method="post" action="{{ url_for('taller.cambiar_estado', id=taller.id) }}" class="d-flex gap-2 flex-wrap">
+        {% for val, label in estados %}
+        <button type="submit" name="estado" value="{{ val }}"
+                class="btn btn-sm {% if taller.estado == val %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          {{ label }}
+        </button>
+        {% endfor %}
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- Productos usados -->
+    <div class="table-card mb-3">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold"><i class="bi bi-box-seam me-1"></i>Repuestos / Productos</span>
+      </div>
+      {% if taller.productos_usados %}
+      <table class="table">
+        <thead><tr><th>Producto</th><th class="text-center">Cant.</th><th class="text-end">P. Unit.</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+        <tbody>
+        {% for tp in taller.productos_usados %}
+        <tr>
+          <td>{{ tp.producto.nombre }}</td>
+          <td class="text-center">{{ tp.cantidad }}</td>
+          <td class="text-end">${{ "%.2f"|format(tp.precio_unitario) }}</td>
+          <td class="text-end fw-semibold">${{ "%.2f"|format(tp.cantidad * tp.precio_unitario) }}</td>
+          <td>
+            {% if taller.estado not in ['entregado', 'cancelado'] %}
+            <form method="post" action="{{ url_for('taller.quitar_producto', id=taller.id, tp_id=tp.id) }}"
+                  onsubmit="return confirm('¿Quitar producto?')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-x"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3" class="text-end text-muted">Subtotal productos</td>
+              <td class="text-end fw-semibold">${{ "%.2f"|format(taller.total_productos) }}</td><td></td></tr>
+        </tfoot>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin repuestos agregados.</div>
+      {% endif %}
+
+      {% if taller.estado not in ['entregado', 'cancelado'] %}
+      <div class="p-3 border-top bg-light">
+        <form method="post" action="{{ url_for('taller.agregar_producto', id=taller.id) }}" class="row g-2 align-items-end">
+          <div class="col-sm-6">
+            <label class="form-label small fw-semibold mb-1">Agregar producto</label>
+            <select name="producto_id" class="form-select form-select-sm" required>
+              <option value="">Seleccionar…</option>
+              {% for p in productos %}
+              <option value="{{ p.id }}">{{ p.nombre }} (stock: {{ p.stock_actual }}) — ${{ "%.2f"|format(p.precio_venta) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-semibold mb-1">Cantidad</label>
+            <input type="number" name="cantidad" class="form-control form-control-sm" value="1" min="1">
+          </div>
+          <div class="col-sm-3">
+            <button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i> Agregar</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Servicios usados -->
+    <div class="table-card">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold"><i class="bi bi-gear me-1"></i>Servicios</span>
+      </div>
+      {% if taller.servicios_usados %}
+      <table class="table">
+        <thead><tr><th>Servicio</th><th class="text-end">Precio</th><th></th></tr></thead>
+        <tbody>
+        {% for ts in taller.servicios_usados %}
+        <tr>
+          <td>{{ ts.servicio.nombre }}</td>
+          <td class="text-end fw-semibold">${{ "%.2f"|format(ts.precio) }}</td>
+          <td>
+            {% if taller.estado not in ['entregado', 'cancelado'] %}
+            <form method="post" action="{{ url_for('taller.quitar_servicio', id=taller.id, ts_id=ts.id) }}"
+                  onsubmit="return confirm('¿Quitar servicio?')">
+              <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-x"></i></button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr><td class="text-end text-muted">Subtotal servicios</td>
+              <td class="text-end fw-semibold">${{ "%.2f"|format(taller.total_servicios) }}</td><td></td></tr>
+        </tfoot>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin servicios agregados.</div>
+      {% endif %}
+
+      {% if taller.estado not in ['entregado', 'cancelado'] %}
+      <div class="p-3 border-top bg-light">
+        <form method="post" action="{{ url_for('taller.agregar_servicio', id=taller.id) }}" class="row g-2 align-items-end">
+          <div class="col-sm-5">
+            <label class="form-label small fw-semibold mb-1">Agregar servicio</label>
+            <select name="servicio_id" class="form-select form-select-sm" required
+                    onchange="this.form.precio.value=this.options[this.selectedIndex].dataset.precio">
+              <option value="">Seleccionar…</option>
+              {% for s in servicios %}
+              <option value="{{ s.id }}" data-precio="{{ s.precio }}">{{ s.nombre }} — ${{ "%.2f"|format(s.precio) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-4">
+            <label class="form-label small fw-semibold mb-1">Precio (editable)</label>
+            <input type="number" name="precio" class="form-control form-control-sm" step="0.01" min="0" placeholder="0.00">
+          </div>
+          <div class="col-sm-3">
+            <button class="btn btn-sm btn-primary w-100"><i class="bi bi-plus"></i> Agregar</button>
+          </div>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

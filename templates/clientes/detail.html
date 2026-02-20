@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}{{ cliente.nombre_completo }}{% endblock %}
+{% block page_title %}{{ cliente.nombre_completo }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('clientes.editar', id=cliente.id) }}" class="btn btn-sm btn-outline-primary">
+  <i class="bi bi-pencil me-1"></i>Editar
+</a>
+<form method="post" action="{{ url_for('clientes.eliminar', id=cliente.id) }}" class="d-inline"
+      onsubmit="return confirm('¿Eliminar este cliente?')">
+  <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash me-1"></i>Eliminar</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="form-card">
+      <div class="text-center mb-3">
+        <div class="rounded-circle bg-primary d-inline-flex align-items-center justify-content-center text-white fw-bold"
+             style="width:64px;height:64px;font-size:1.5rem">
+          {{ cliente.nombre[0] }}{{ cliente.apellido[0] }}
+        </div>
+        <h5 class="mt-2 mb-0">{{ cliente.nombre_completo }}</h5>
+        <small class="text-muted">Cliente desde {{ cliente.created_at.strftime('%d/%m/%Y') }}</small>
+      </div>
+      <hr>
+      <div class="mb-2"><i class="bi bi-telephone me-2 text-muted"></i>{{ cliente.telefono or '—' }}</div>
+      <div class="mb-2"><i class="bi bi-envelope me-2 text-muted"></i>{{ cliente.email or '—' }}</div>
+      <div class="mb-2"><i class="bi bi-geo-alt me-2 text-muted"></i>{{ cliente.direccion or '—' }}</div>
+      {% if cliente.notas %}
+      <hr>
+      <div class="text-muted small">{{ cliente.notas }}</div>
+      {% endif %}
+    </div>
+  </div>
+  <div class="col-lg-8">
+    <!-- Talleres -->
+    <div class="table-card mb-3">
+      <div class="d-flex align-items-center justify-content-between p-3 border-bottom">
+        <span class="fw-semibold"><i class="bi bi-wrench me-1"></i>Órdenes de Taller</span>
+        <a href="{{ url_for('taller.nuevo') }}" class="btn btn-sm btn-primary">Nueva Orden</a>
+      </div>
+      {% if cliente.talleres %}
+      <table class="table table-hover">
+        <thead><tr><th>#</th><th>Equipo</th><th>Estado</th><th>Total</th><th></th></tr></thead>
+        <tbody>
+        {% for t in cliente.talleres|sort(attribute='created_at', reverse=True) %}
+        <tr>
+          <td class="fw-semibold text-primary">#{{ t.numero }}</td>
+          <td>{{ t.tipo_equipo }} {{ t.marca }} {{ t.modelo }}</td>
+          <td><span class="badge badge-{{ t.estado }}">{{ t.estado_display }}</span></td>
+          <td>${{ "%.2f"|format(t.total_final) }}</td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-xs btn-sm btn-outline-primary py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin órdenes de taller.</div>
+      {% endif %}
+    </div>
+    <!-- Ventas -->
+    <div class="table-card">
+      <div class="p-3 border-bottom fw-semibold"><i class="bi bi-cart me-1"></i>Ventas</div>
+      {% if cliente.ventas %}
+      <table class="table table-hover">
+        <thead><tr><th>Fecha</th><th>Items</th><th>Total</th></tr></thead>
+        <tbody>
+        {% for v in cliente.ventas|sort(attribute='fecha', reverse=True) %}
+        <tr>
+          <td>{{ v.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ v.items|length }} item(s)</td>
+          <td class="fw-semibold">${{ "%.2f"|format(v.total) }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin ventas registradas.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

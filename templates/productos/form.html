@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% block title %}{{ titulo }}{% endblock %}
+{% block page_title %}{{ titulo }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="form-card">
+      <form method="post">
+        {% if tipo == 'producto' %}
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Nombre *</label>
+            <input type="text" name="nombre" class="form-control" required value="{{ producto.nombre if producto else '' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Descripción</label>
+            <textarea name="descripcion" class="form-control" rows="2">{{ producto.descripcion if producto else '' }}</textarea>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Categoría</label>
+            <select name="categoria_id" class="form-select">
+              <option value="">Sin categoría</option>
+              {% for cat in categorias %}
+              <option value="{{ cat.id }}" {% if producto and producto.categoria_id == cat.id %}selected{% endif %}>{{ cat.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Unidad</label>
+            <input type="text" name="unidad" class="form-control" value="{{ producto.unidad if producto else 'unidad' }}" placeholder="unidad, kg, m…">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Precio de Compra ($)</label>
+            <input type="number" name="precio_compra" class="form-control" step="0.01" min="0"
+                   value="{{ producto.precio_compra if producto else '0' }}">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Precio de Venta ($) *</label>
+            <input type="number" name="precio_venta" class="form-control" step="0.01" min="0" required
+                   value="{{ producto.precio_venta if producto else '' }}">
+          </div>
+          {% if not producto %}
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Stock inicial</label>
+            <input type="number" name="stock_actual" class="form-control" min="0" value="0">
+          </div>
+          {% endif %}
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Stock mínimo</label>
+            <input type="number" name="stock_minimo" class="form-control" min="0"
+                   value="{{ producto.stock_minimo if producto else '5' }}">
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                     {% if not producto or producto.activo %}checked{% endif %}>
+              <label class="form-check-label" for="activo">Producto activo</label>
+            </div>
+          </div>
+        </div>
+
+        {% else %} {# servicio #}
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Nombre *</label>
+            <input type="text" name="nombre" class="form-control" required value="{{ producto.nombre if producto else '' }}">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Descripción</label>
+            <textarea name="descripcion" class="form-control" rows="2">{{ producto.descripcion if producto else '' }}</textarea>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Precio ($) *</label>
+            <input type="number" name="precio" class="form-control" step="0.01" min="0" required
+                   value="{{ producto.precio if producto else '' }}">
+          </div>
+          <div class="col-12">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="activo" id="activo"
+                     {% if not producto or producto.activo %}checked{% endif %}>
+              <label class="form-check-label" for="activo">Servicio activo</label>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="d-flex gap-2 mt-4">
+          <button type="submit" class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Guardar</button>
+          <a href="{{ url_for('productos.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

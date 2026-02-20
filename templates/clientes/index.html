@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Clientes{% endblock %}
+{% block page_title %}Clientes{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('clientes.nuevo') }}" class="btn btn-primary btn-sm">
+  <i class="bi bi-person-plus me-1"></i>Nuevo Cliente
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  <div class="p-3 border-bottom">
+    <form method="get" class="d-flex gap-2">
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Buscar por nombre, teléfono, email…" style="max-width:320px">
+      <button class="btn btn-sm btn-secondary"><i class="bi bi-search"></i></button>
+      {% if q %}<a href="{{ url_for('clientes.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>{% endif %}
+    </form>
+  </div>
+  {% if clientes %}
+  <table class="table table-hover">
+    <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Talleres</th><th></th></tr></thead>
+    <tbody>
+    {% for c in clientes %}
+    <tr>
+      <td class="text-muted small">{{ c.id }}</td>
+      <td class="fw-semibold">{{ c.nombre_completo }}</td>
+      <td>{{ c.telefono or '—' }}</td>
+      <td>{{ c.email or '—' }}</td>
+      <td><span class="badge bg-secondary">{{ c.talleres|length }}</span></td>
+      <td class="text-end">
+        <a href="{{ url_for('clientes.detalle', id=c.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>
+        <a href="{{ url_for('clientes.editar', id=c.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-people fs-1 d-block mb-2"></i>
+    {% if q %}No se encontraron clientes.{% else %}Aún no hay clientes registrados.{% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

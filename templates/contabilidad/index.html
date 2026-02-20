@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}Contabilidad{% endblock %}
+{% block page_title %}Contabilidad{% endblock %}
+
+{% block content %}
+<!-- Selector de año -->
+<div class="d-flex align-items-center gap-3 mb-4">
+  <span class="fw-semibold">Año:</span>
+  {% for a in anios %}
+  <a href="?anio={{ a }}" class="btn btn-sm {% if a == anio %}btn-primary{% else %}btn-outline-secondary{% endif %}">{{ a }}</a>
+  {% endfor %}
+</div>
+
+<!-- Tarjetas resumen anual -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-4">
+    <div class="card stat-card border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total Ingresos {{ anio }}</div>
+        <div class="fw-bold fs-4 text-success">${{ "%.2f"|format(total_ingresos) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Total Egresos {{ anio }}</div>
+        <div class="fw-bold fs-4 text-danger">${{ "%.2f"|format(total_egresos) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0">
+      <div class="card-body">
+        <div class="text-muted small mb-1">Ganancia Neta {{ anio }}</div>
+        <div class="fw-bold fs-4 {% if total_ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
+          ${{ "%.2f"|format(total_ganancia) }}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla mensual -->
+<div class="table-card mb-4">
+  <div class="p-3 border-bottom fw-semibold">Resumen mensual — {{ anio }}</div>
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>Mes</th>
+        <th class="text-end">Ingresos</th>
+        <th class="text-end">Egresos</th>
+        <th class="text-end">Ganancia</th>
+        <th style="min-width:180px">Margen</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for m in meses_data %}
+    <tr {% if m.ingresos == 0 and m.egresos == 0 %}class="text-muted"{% endif %}>
+      <td class="fw-semibold">{{ m.nombre }}</td>
+      <td class="text-end text-success">${{ "%.2f"|format(m.ingresos) }}</td>
+      <td class="text-end text-danger">${{ "%.2f"|format(m.egresos) }}</td>
+      <td class="text-end fw-bold {% if m.ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
+        ${{ "%.2f"|format(m.ganancia) }}
+      </td>
+      <td>
+        {% if m.ingresos > 0 %}
+          {% set pct = (m.ganancia / m.ingresos * 100)|round(1) %}
+          <div class="progress" style="height:14px">
+            <div class="progress-bar {% if pct >= 0 %}bg-success{% else %}bg-danger{% endif %}"
+                 style="width:{{ [pct|abs, 100]|min }}%">
+              <span class="small">{{ pct }}%</span>
+            </div>
+          </div>
+        {% else %}
+          <span class="text-muted small">—</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    <tfoot class="fw-bold">
+      <tr style="background:#f8f9fb">
+        <td>TOTAL</td>
+        <td class="text-end text-success">${{ "%.2f"|format(total_ingresos) }}</td>
+        <td class="text-end text-danger">${{ "%.2f"|format(total_egresos) }}</td>
+        <td class="text-end {% if total_ganancia >= 0 %}text-success{% else %}text-danger{% endif %}">
+          ${{ "%.2f"|format(total_ganancia) }}
+        </td>
+        <td>
+          {% if total_ingresos > 0 %}
+            {% set pct = (total_ganancia / total_ingresos * 100)|round(1) %}
+            <span class="badge {% if pct >= 0 %}bg-success{% else %}bg-danger{% endif %}">{{ pct }}%</span>
+          {% endif %}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- Enlace a caja -->
+<div class="text-center">
+  <a href="{{ url_for('caja.index') }}" class="btn btn-outline-primary">
+    <i class="bi bi-cash-coin me-1"></i>Ver detalle en Caja
+  </a>
+</div>
+{% endblock %}
