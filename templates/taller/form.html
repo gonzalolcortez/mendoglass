@@ -11,14 +11,19 @@
         <div class="row g-3 mb-4">
           <div class="col-12">
             <label class="form-label fw-semibold">Cliente *</label>
-            <select name="cliente_id" class="form-select" required>
-              <option value="">Seleccionar cliente…</option>
-              {% for c in clientes %}
-              <option value="{{ c.id }}" {% if taller and taller.cliente_id == c.id %}selected{% endif %}>
-                {{ c.nombre_completo }} {{ '· ' + c.telefono if c.telefono else '' }}
-              </option>
-              {% endfor %}
-            </select>
+            <div class="input-group">
+              <select name="cliente_id" id="cliente_id" class="form-select" required>
+                <option value="">Seleccionar cliente…</option>
+                {% for c in clientes %}
+                <option value="{{ c.id }}" {% if taller and taller.cliente_id == c.id %}selected{% endif %}>
+                  {{ c.nombre_completo }} {{ '· ' + c.telefono if c.telefono else '' }}
+                </option>
+                {% endfor %}
+              </select>
+              <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalNuevoCliente" title="Crear nuevo cliente">
+                <i class="bi bi-person-plus"></i>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -90,4 +95,92 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<!-- Modal: Nuevo Cliente rápido -->
+<div class="modal fade" id="modalNuevoCliente" tabindex="-1" aria-labelledby="modalNuevoClienteLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalNuevoClienteLabel"><i class="bi bi-person-plus me-2"></i>Nuevo Cliente</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modalClienteError" class="alert alert-danger d-none"></div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Nombre *</label>
+            <input type="text" id="nc_nombre" class="form-control" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Apellido *</label>
+            <input type="text" id="nc_apellido" class="form-control" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Teléfono</label>
+            <input type="text" id="nc_telefono" class="form-control">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Email</label>
+            <input type="email" id="nc_email" class="form-control">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Dirección</label>
+            <input type="text" id="nc_direccion" class="form-control">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btnGuardarCliente">
+          <i class="bi bi-check-lg me-1"></i>Guardar Cliente
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+document.getElementById('btnGuardarCliente').addEventListener('click', function () {
+  var nombre = document.getElementById('nc_nombre').value.trim();
+  var apellido = document.getElementById('nc_apellido').value.trim();
+  var errorDiv = document.getElementById('modalClienteError');
+  errorDiv.classList.add('d-none');
+  if (!nombre || !apellido) {
+    errorDiv.textContent = 'Nombre y apellido son obligatorios.';
+    errorDiv.classList.remove('d-none');
+    return;
+  }
+  var formData = new FormData();
+  formData.append('nombre', nombre);
+  formData.append('apellido', apellido);
+  formData.append('telefono', document.getElementById('nc_telefono').value.trim());
+  formData.append('email', document.getElementById('nc_email').value.trim());
+  formData.append('direccion', document.getElementById('nc_direccion').value.trim());
+  fetch('{{ url_for("clientes.nuevo_rapido") }}', { method: 'POST', body: formData })
+    .then(function (r) { return r.json().then(function(data) { return {ok: r.ok, data: data}; }); })
+    .then(function (result) {
+      var data = result.data;
+      if (!result.ok || data.error) {
+        errorDiv.textContent = data.error || 'Error al crear el cliente.';
+        errorDiv.classList.remove('d-none');
+        return;
+      }
+      var select = document.getElementById('cliente_id');
+      var option = new Option(
+        data.nombre_completo + (data.telefono ? ' · ' + data.telefono : ''),
+        data.id, true, true
+      );
+      select.add(option);
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNuevoCliente')).hide();
+      ['nc_nombre','nc_apellido','nc_telefono','nc_email','nc_direccion'].forEach(function(id){
+        document.getElementById(id).value = '';
+      });
+    })
+    .catch(function () {
+      errorDiv.textContent = 'Error al crear el cliente. Intente nuevamente.';
+      errorDiv.classList.remove('d-none');
+    });
+});
+</script>
 {% endblock %}

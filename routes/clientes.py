@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from models import db, Cliente
 
 clientes_bp = Blueprint('clientes', __name__)
@@ -43,6 +43,26 @@ def nuevo():
 def detalle(id):
     cliente = Cliente.query.get_or_404(id)
     return render_template('clientes/detail.html', cliente=cliente)
+
+
+@clientes_bp.route('/nuevo_rapido', methods=['POST'])
+def nuevo_rapido():
+    nombre = request.form.get('nombre', '').strip()
+    apellido = request.form.get('apellido', '').strip()
+    if not nombre or not apellido:
+        return jsonify({'error': 'Nombre y apellido son obligatorios.'}), 400
+    cliente = Cliente(
+        nombre=nombre,
+        apellido=apellido,
+        telefono=request.form.get('telefono', '').strip(),
+        email=request.form.get('email', '').strip(),
+        direccion=request.form.get('direccion', '').strip(),
+        notas=request.form.get('notas', '').strip(),
+    )
+    db.session.add(cliente)
+    db.session.commit()
+    return jsonify({'id': cliente.id, 'nombre_completo': cliente.nombre_completo,
+                    'telefono': cliente.telefono})
 
 
 @clientes_bp.route('/<int:id>/editar', methods=['GET', 'POST'])
