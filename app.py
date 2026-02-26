@@ -52,7 +52,15 @@ def _seed_default_user():
         u = Usuario(username='Gonzalo', nombre='Gonzalo')
         u.set_password('1234')
         db.session.add(u)
-        db.session.commit()
+    if not Usuario.query.filter_by(username='Administrador').first():
+        u = Usuario(username='Administrador', nombre='Administrador')
+        u.set_password('010203')
+        db.session.add(u)
+    if not Usuario.query.filter_by(username='Matias').first():
+        u = Usuario(username='Matias', nombre='Matias')
+        u.set_password('Joel')
+        db.session.add(u)
+    db.session.commit()
 
 
 app = create_app()
