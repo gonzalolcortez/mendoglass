@@ -61,7 +61,7 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 | Componente | Tecnología |
 |---|---|
 | Backend | Python 3.10+ · Flask 3.0 |
-| ORM / Base de datos | Flask-SQLAlchemy 3.1 · SQLite |
+| ORM / Base de datos | Flask-SQLAlchemy 3.1 · PostgreSQL (o SQLite en local) |
 | Frontend | Bootstrap 5.3 (local) · Bootstrap Icons 1.11 |
 | Templating | Jinja2 |
 
@@ -73,6 +73,18 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 
 - Python 3.10 o superior
 - pip
+- PostgreSQL (para producción)
+
+---
+
+## Variables de entorno
+
+| Variable | Descripción | Ejemplo |
+|---|---|---|
+| `DATABASE_URL` | URI de conexión a la base de datos | `postgresql://user:password@localhost:5432/sistema` |
+| `SECRET_KEY` | Clave secreta de Flask | `cambiar-en-produccion` |
+
+> Si `DATABASE_URL` no está definida, la app usa SQLite (`instance/sistema.db`) como base de datos local.
 
 ---
 
@@ -164,7 +176,25 @@ Sistema-Backup/
 
 ## Base de datos
 
-La base de datos SQLite se crea automáticamente en `instance/sistema.db` al iniciar la app por primera vez. No se requiere configuración adicional.
+La app usa **PostgreSQL** en producción. La URI de conexión se configura con la variable de entorno `DATABASE_URL`.
+
+En desarrollo local, si no se define `DATABASE_URL`, se usa SQLite automáticamente (`instance/sistema.db`).
+
+### Configuración con PostgreSQL
+
+1. Crear la base de datos en PostgreSQL:
+
+```sql
+CREATE DATABASE sistema;
+```
+
+2. Definir la variable de entorno antes de iniciar la app:
+
+```bash
+export DATABASE_URL="postgresql://usuario:contraseña@localhost:5432/sistema"
+```
+
+3. Las tablas se crean automáticamente al iniciar la app.
 
 ### Modelos principales
 
