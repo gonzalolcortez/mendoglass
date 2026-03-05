@@ -57,6 +57,24 @@ class Cliente(db.Model):
         return f"{self.nombre} {self.apellido}"
 
 
+class Proveedor(db.Model):
+    __tablename__ = 'proveedores'
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(100), nullable=False)
+    apellido = db.Column(db.String(100), nullable=False)
+    telefono = db.Column(db.String(30))
+    email = db.Column(db.String(120))
+    direccion = db.Column(db.String(200))
+    notas = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    ingresos = db.relationship('IngresoMercaderia', backref='proveedor', lazy=True)
+
+    @property
+    def nombre_completo(self):
+        return f"{self.nombre} {self.apellido}"
+
+
 class Categoria(db.Model):
     __tablename__ = 'categorias'
     id = db.Column(db.Integer, primary_key=True)
@@ -81,6 +99,7 @@ class Producto(db.Model):
 
     taller_productos = db.relationship('TallerProducto', backref='producto', lazy=True)
     venta_items = db.relationship('VentaItem', backref='producto', lazy=True)
+    ingreso_items = db.relationship('IngresoMercaderiaItem', backref='producto', lazy=True)
 
     @property
     def stock_bajo(self):
@@ -210,6 +229,30 @@ class MovimientoCaja(db.Model):
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class IngresoMercaderia(db.Model):
+    __tablename__ = 'ingresos_mercaderia'
+    id = db.Column(db.Integer, primary_key=True)
+    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=True)
+    forma_pago = db.Column(db.String(50), default='efectivo')
+    notas = db.Column(db.Text)
+    total = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship('IngresoMercaderiaItem', backref='ingreso', lazy=True, cascade='all, delete-orphan')
+
+
+class IngresoMercaderiaItem(db.Model):
+    __tablename__ = 'ingreso_mercaderia_items'
+    id = db.Column(db.Integer, primary_key=True)
+    ingreso_id = db.Column(db.Integer, db.ForeignKey('ingresos_mercaderia.id'), nullable=False)
+    producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True)
+    nombre_producto = db.Column(db.String(150), nullable=False)
+    cantidad = db.Column(db.Integer, default=1)
+    precio_compra = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
 
 
 # Cuentas disponibles para movimientos de caja

@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from models import db, Producto, Servicio, Categoria
+from models import (db, Producto, Servicio, Categoria, Proveedor,
+                    IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO)
+from datetime import datetime
 
 productos_bp = Blueprint('productos', __name__)
 
@@ -158,3 +160,111 @@ def eliminar_servicio(id):
     db.session.commit()
     flash('Servicio desactivado.', 'success')
     return redirect(url_for('productos.index', tab='servicios'))
+
+
+# ── Ingreso de Mercadería ────────────────────────────────────────────────────
+
+@productos_bp.route('/ingreso-mercaderia')
+@login_required
+def ingresos_mercaderia():
+    ingresos = IngresoMercaderia.query.order_by(IngresoMercaderia.fecha.desc()).all()
+    return render_template('productos/ingresos_mercaderia.html', ingresos=ingresos)
+
+
+@productos_bp.route('/ingreso-mercaderia/nuevo', methods=['GET', 'POST'])
+@login_required
+def nuevo_ingreso_mercaderia():
+    productos_obj = Producto.query.filter_by(activo=True).order_by(Producto.nombre).all()
+    proveedores = Proveedor.query.order_by(Proveedor.apellido).all()
+    productos_json = [{'id': p.id, 'nombre': p.nombre, 'precio_compra': p.precio_compra,
+                       'stock_actual': p.stock_actual, 'codigo_barras': p.codigo_barras or ''}
+                      for p in productos_obj]
+
+    if request.method == 'POST':
+        proveedor_id = request.form.get('proveedor_id') or None
+        forma_pago = request.form.get('forma_pago', 'efectivo')
+        notas = request.form.get('notas', '').strip()
+
+        nombres = request.form.getlist('item_nombre[]')
+        producto_ids = request.form.getlist('item_producto_id[]')
+        cantidades = request.form.getlist('item_cantidad[]')
+        precios = request.form.getlist('item_precio_compra[]')
+
+        if not nombres:
+            flash('Debe agregar al menos un producto.', 'danger')
+            return render_template('productos/ingreso_mercaderia.html',
+                                   productos=productos_json, proveedores=proveedores,
+                                   formas_pago=FORMAS_PAGO)
+
+        ingreso = IngresoMercaderia(
+            proveedor_id=proveedor_id,
+            forma_pago=forma_pago,
+            notas=notas,
+            fecha=datetime.utcnow(),
+        )
+        db.session.add(ingreso)
+        db.session.flush()
+
+        total = 0.0
+        for nombre, pid_str, cant_str, precio_str in zip(nombres, producto_ids, cantidades, precios):
+            nombre = nombre.strip()
+            if not nombre:
+                continue
+            cant = int(cant_str or 1)
+            precio = float(precio_str or 0)
+            subtotal = cant * precio
+            total += subtotal
+
+            if pid_str and pid_str != '0':
+                prod = Producto.query.get(int(pid_str))
+                if prod:
+                    prod.stock_actual += cant
+                    prod.precio_compra = precio
+                    pid = prod.id
+                else:
+                    pid = None
+            else:
+                # Create a new product with basic info
+                prod = Producto(
+                    nombre=nombre,
+                    precio_compra=precio,
+                    precio_venta=precio,
+                    stock_actual=cant,
+                    stock_minimo=5,
+                    activo=True,
+                )
+                db.session.add(prod)
+                db.session.flush()
+                pid = prod.id
+
+            item = IngresoMercaderiaItem(
+                ingreso_id=ingreso.id,
+                producto_id=pid,
+                nombre_producto=nombre,
+                cantidad=cant,
+                precio_compra=precio,
+                subtotal=subtotal,
+            )
+            db.session.add(item)
+
+        ingreso.total = total
+
+        mov = MovimientoCaja(
+            tipo='egreso',
+            cuenta='compra_mercaderia',
+            forma_pago=forma_pago,
+            concepto=f'Ingreso de Mercadería #{ingreso.id}',
+            monto=total,
+            referencia_tipo='ingreso_mercaderia',
+            referencia_id=ingreso.id,
+            fecha=datetime.utcnow(),
+        )
+        db.session.add(mov)
+        db.session.commit()
+        flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock y caja actualizados.', 'success')
+        return redirect(url_for('productos.ingresos_mercaderia'))
+
+    return render_template('productos/ingreso_mercaderia.html',
+                           productos=productos_json, proveedores=proveedores,
+                           formas_pago=FORMAS_PAGO)
+

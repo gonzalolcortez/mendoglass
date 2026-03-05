@@ -10,34 +10,34 @@
         <div class="row g-3">
           <div class="col-sm-6">
             <label class="form-label fw-semibold">Nombre *</label>
-            <input type="text" name="nombre" class="form-control" required value="{{ cliente.nombre if cliente else '' }}">
+            <input type="text" name="nombre" class="form-control" required value="{{ entity.nombre if entity else '' }}">
           </div>
           <div class="col-sm-6">
             <label class="form-label fw-semibold">Apellido *</label>
-            <input type="text" name="apellido" class="form-control" required value="{{ cliente.apellido if cliente else '' }}">
+            <input type="text" name="apellido" class="form-control" required value="{{ entity.apellido if entity else '' }}">
           </div>
           <div class="col-sm-6">
             <label class="form-label fw-semibold">Teléfono</label>
-            <input type="text" name="telefono" class="form-control" value="{{ cliente.telefono if cliente else '' }}">
+            <input type="text" name="telefono" class="form-control" value="{{ entity.telefono if entity else '' }}">
           </div>
           <div class="col-sm-6">
             <label class="form-label fw-semibold">Email</label>
-            <input type="email" name="email" class="form-control" value="{{ cliente.email if cliente else '' }}">
+            <input type="email" name="email" class="form-control" value="{{ entity.email if entity else '' }}">
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold">Dirección</label>
-            <input type="text" name="direccion" class="form-control" value="{{ cliente.direccion if cliente else '' }}">
+            <input type="text" name="direccion" class="form-control" value="{{ entity.direccion if entity else '' }}">
           </div>
           <div class="col-12">
             <label class="form-label fw-semibold">Notas</label>
-            <textarea name="notas" class="form-control" rows="3">{{ cliente.notas if cliente else '' }}</textarea>
+            <textarea name="notas" class="form-control" rows="3">{{ entity.notas if entity else '' }}</textarea>
           </div>
         </div>
         <div class="d-flex gap-2 mt-4">
           <button type="submit" class="btn btn-primary">
             <i class="bi bi-check-lg me-1"></i>Guardar
           </button>
-          <a href="{{ url_for('clientes.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+          <a href="{{ cancel_url }}" class="btn btn-outline-secondary">Cancelar</a>
         </div>
       </form>
     </div>

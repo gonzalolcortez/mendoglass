@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Ingresos de Mercadería{% endblock %}
+{% block page_title %}Ingresos de Mercadería{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('productos.nuevo_ingreso_mercaderia') }}" class="btn btn-warning btn-sm">
+  <i class="bi bi-box-arrow-in-down me-1"></i>Nuevo Ingreso
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  {% if ingresos %}
+  <table class="table table-hover">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Fecha</th>
+        <th>Proveedor</th>
+        <th>Items</th>
+        <th>Forma de Pago</th>
+        <th class="text-end">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for i in ingresos %}
+    <tr>
+      <td class="text-muted small">{{ i.id }}</td>
+      <td>{{ i.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td>{{ i.proveedor.nombre_completo if i.proveedor else '—' }}</td>
+      <td>
+        {% for item in i.items %}
+        <span class="badge bg-light text-dark border me-1">{{ item.nombre_producto }} ×{{ item.cantidad }}</span>
+        {% endfor %}
+      </td>
+      <td>{{ i.forma_pago }}</td>
+      <td class="text-end fw-semibold text-danger">${{ "%.2f"|format(i.total) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-box-arrow-in-down fs-1 d-block mb-2"></i>
+    Aún no hay ingresos de mercadería registrados.
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

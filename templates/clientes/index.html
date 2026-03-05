@@ -1,46 +1,98 @@
 {% extends 'base.html' %}
-{% block title %}Clientes{% endblock %}
-{% block page_title %}Clientes{% endblock %}
+{% block title %}Clientes y Proveedores{% endblock %}
+{% block page_title %}Clientes y Proveedores{% endblock %}
 
 {% block topbar_actions %}
+{% if tab == 'proveedores' %}
+<a href="{{ url_for('clientes.nuevo_proveedor') }}" class="btn btn-warning btn-sm">
+  <i class="bi bi-building-add me-1"></i>Nuevo Proveedor
+</a>
+{% else %}
 <a href="{{ url_for('clientes.nuevo') }}" class="btn btn-primary btn-sm">
   <i class="bi bi-person-plus me-1"></i>Nuevo Cliente
 </a>
+{% endif %}
 {% endblock %}
 
 {% block content %}
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3">
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'clientes' %}active{% endif %}" href="?tab=clientes">
+      <i class="bi bi-people me-1"></i>Clientes
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if tab == 'proveedores' %}active{% endif %}" href="?tab=proveedores">
+      <i class="bi bi-building me-1"></i>Proveedores
+    </a>
+  </li>
+</ul>
+
 <div class="table-card">
   <div class="p-3 border-bottom">
     <form method="get" class="d-flex gap-2">
-      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Buscar por nombre, teléfono, email…" style="max-width:320px">
+      <input type="hidden" name="tab" value="{{ tab }}">
+      <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm"
+             placeholder="Buscar por nombre, teléfono, email…" style="max-width:320px">
       <button class="btn btn-sm btn-secondary"><i class="bi bi-search"></i></button>
-      {% if q %}<a href="{{ url_for('clientes.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>{% endif %}
+      {% if q %}<a href="?tab={{ tab }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>{% endif %}
     </form>
   </div>
-  {% if clientes %}
-  <table class="table table-hover">
-    <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Talleres</th><th></th></tr></thead>
-    <tbody>
-    {% for c in clientes %}
-    <tr>
-      <td class="text-muted small">{{ c.id }}</td>
-      <td class="fw-semibold">{{ c.nombre_completo }}</td>
-      <td>{{ c.telefono or '—' }}</td>
-      <td>{{ c.email or '—' }}</td>
-      <td><span class="badge bg-secondary">{{ c.talleres|length }}</span></td>
-      <td class="text-end">
-        <a href="{{ url_for('clientes.detalle', id=c.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>
-        <a href="{{ url_for('clientes.editar', id=c.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
-      </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <div class="p-5 text-center text-muted">
-    <i class="bi bi-people fs-1 d-block mb-2"></i>
-    {% if q %}No se encontraron clientes.{% else %}Aún no hay clientes registrados.{% endif %}
-  </div>
+
+  {% if tab == 'clientes' %}
+    {% if clientes %}
+    <table class="table table-hover">
+      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Talleres</th><th></th></tr></thead>
+      <tbody>
+      {% for c in clientes %}
+      <tr>
+        <td class="text-muted small">{{ c.id }}</td>
+        <td class="fw-semibold">{{ c.nombre_completo }}</td>
+        <td>{{ c.telefono or '—' }}</td>
+        <td>{{ c.email or '—' }}</td>
+        <td><span class="badge bg-secondary">{{ c.talleres|length }}</span></td>
+        <td class="text-end">
+          <a href="{{ url_for('clientes.detalle', id=c.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>
+          <a href="{{ url_for('clientes.editar', id=c.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="p-5 text-center text-muted">
+      <i class="bi bi-people fs-1 d-block mb-2"></i>
+      {% if q %}No se encontraron clientes.{% else %}Aún no hay clientes registrados.{% endif %}
+    </div>
+    {% endif %}
+
+  {% elif tab == 'proveedores' %}
+    {% if proveedores %}
+    <table class="table table-hover">
+      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Ingresos</th><th></th></tr></thead>
+      <tbody>
+      {% for p in proveedores %}
+      <tr>
+        <td class="text-muted small">{{ p.id }}</td>
+        <td class="fw-semibold">{{ p.nombre_completo }}</td>
+        <td>{{ p.telefono or '—' }}</td>
+        <td>{{ p.email or '—' }}</td>
+        <td><span class="badge bg-secondary">{{ p.ingresos|length }}</span></td>
+        <td class="text-end">
+          <a href="{{ url_for('clientes.detalle_proveedor', id=p.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>
+          <a href="{{ url_for('clientes.editar_proveedor', id=p.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Editar</a>
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="p-5 text-center text-muted">
+      <i class="bi bi-building fs-1 d-block mb-2"></i>
+      {% if q %}No se encontraron proveedores.{% else %}Aún no hay proveedores registrados.{% endif %}
+    </div>
+    {% endif %}
   {% endif %}
 </div>
 {% endblock %}

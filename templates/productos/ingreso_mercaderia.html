@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+{% block title %}Ingreso de Mercadería{% endblock %}
+{% block page_title %}Ingreso de Mercadería{% endblock %}
+
+{% block extra_head %}
+<style>
+  #items-table tbody tr td { vertical-align: middle; }
+  .item-row td { vertical-align: middle; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="post" id="ingreso-form">
+  <div class="row g-3">
+    <!-- Columna izquierda: datos + items -->
+    <div class="col-lg-8">
+      <div class="form-card mb-3">
+        <div class="section-title">Datos del Ingreso</div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Proveedor (opcional)</label>
+            <select name="proveedor_id" class="form-select">
+              <option value="">— Sin proveedor —</option>
+              {% for p in proveedores %}
+              <option value="{{ p.id }}">{{ p.nombre_completo }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Forma de Pago *</label>
+            <select name="forma_pago" class="form-select" required>
+              {% for val, label in formas_pago %}
+              <option value="{{ val }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Notas</label>
+            <input type="text" name="notas" class="form-control" placeholder="Opcional…">
+          </div>
+        </div>
+      </div>
+
+      <!-- Items -->
+      <div class="form-card">
+        <div class="section-title">Productos a Ingresar</div>
+
+        <!-- Selector rápido -->
+        <div class="row g-2 mb-3 align-items-end">
+          <div class="col-sm-5">
+            <label class="form-label small fw-semibold">Producto existente</label>
+            <select id="sel-producto" class="form-select form-select-sm">
+              <option value="">— Nuevo producto —</option>
+              {% for p in productos %}
+              <option value="{{ p.id }}" data-precio="{{ p.precio_compra }}" data-nombre="{{ p.nombre }}">
+                {{ p.nombre }} (stock: {{ p.stock_actual }})
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label small fw-semibold">Nombre (si es nuevo)</label>
+            <input type="text" id="sel-nombre" class="form-control form-control-sm" placeholder="Nombre del producto">
+          </div>
+          <div class="col-sm-1">
+            <label class="form-label small fw-semibold">Cant.</label>
+            <input type="number" id="sel-cantidad" class="form-control form-control-sm" value="1" min="1">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small fw-semibold">Precio Compra</label>
+            <input type="number" id="sel-precio" class="form-control form-control-sm" step="0.01" min="0" value="0">
+          </div>
+          <div class="col-sm-1">
+            <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarItem()">
+              <i class="bi bi-plus"></i>
+            </button>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table table-sm" id="items-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-end">Precio Compra</th>
+                <th class="text-end">Subtotal</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="items-body">
+              <tr id="empty-row">
+                <td colspan="5" class="text-center text-muted py-3 small">Agregue productos al ingreso…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columna derecha: resumen -->
+    <div class="col-lg-4">
+      <div class="form-card sticky-top" style="top:80px">
+        <div class="section-title">Resumen</div>
+        <div class="d-flex justify-content-between mb-3">
+          <span class="fw-bold">TOTAL A PAGAR:</span>
+          <span id="res-total" class="fw-bold fs-5 text-danger">$0.00</span>
+        </div>
+        <div class="alert alert-warning py-2 small">
+          <i class="bi bi-info-circle me-1"></i>
+          El total será registrado como egreso en Caja según la forma de pago seleccionada.
+        </div>
+        <button type="submit" class="btn btn-warning w-100" id="btn-confirmar" disabled>
+          <i class="bi bi-check-circle me-1"></i>Confirmar Ingreso
+        </button>
+        <a href="{{ url_for('productos.ingresos_mercaderia') }}" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const productosData = {{ productos | tojson }};
+const productoMap = {};
+productosData.forEach(p => productoMap[p.id] = p);
+
+const selProducto = document.getElementById('sel-producto');
+const selNombre = document.getElementById('sel-nombre');
+const selPrecio = document.getElementById('sel-precio');
+
+selProducto.addEventListener('change', function() {
+  const id = this.value;
+  if (id) {
+    const p = productoMap[parseInt(id)];
+    if (p) {
+      selNombre.value = p.nombre;
+      selPrecio.value = p.precio_compra.toFixed(2);
+    }
+  } else {
+    selNombre.value = '';
+    selPrecio.value = '0';
+  }
+});
+
+let itemCount = 0;
+
+function agregarItem() {
+  const productoId = selProducto.value;
+  const nombre = productoId
+    ? productoMap[parseInt(productoId)].nombre
+    : selNombre.value.trim();
+
+  if (!nombre) {
+    selNombre.classList.add('is-invalid');
+    setTimeout(() => selNombre.classList.remove('is-invalid'), 1500);
+    return;
+  }
+
+  const cant = parseInt(document.getElementById('sel-cantidad').value) || 1;
+  const precio = parseFloat(selPrecio.value) || 0;
+  const subtotal = cant * precio;
+
+  const emptyRow = document.getElementById('empty-row');
+  if (emptyRow) emptyRow.remove();
+
+  const tbody = document.getElementById('items-body');
+  const tr = document.createElement('tr');
+  tr.className = 'item-row';
+  tr.innerHTML = `
+    <td>${nombre}
+      <input type="hidden" name="item_producto_id[]" value="${productoId || 0}">
+      <input type="hidden" name="item_nombre[]" value="${nombre}">
+    </td>
+    <td class="text-center">
+      <input type="hidden" name="item_cantidad[]" value="${cant}">${cant}
+    </td>
+    <td class="text-end">
+      <input type="hidden" name="item_precio_compra[]" value="${precio.toFixed(2)}">
+      $${precio.toFixed(2)}
+    </td>
+    <td class="text-end fw-semibold" data-sub="${subtotal}">$${subtotal.toFixed(2)}</td>
+    <td class="text-end">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="quitarItem(this)">
+        <i class="bi bi-x"></i>
+      </button>
+    </td>`;
+  tbody.appendChild(tr);
+  itemCount++;
+
+  // Reset selectors
+  selProducto.value = '';
+  selNombre.value = '';
+  selPrecio.value = '0';
+  document.getElementById('sel-cantidad').value = '1';
+
+  calcTotal();
+}
+
+function quitarItem(btn) {
+  btn.closest('tr').remove();
+  itemCount--;
+  if (document.getElementById('items-body').children.length === 0) {
+    const tbody = document.getElementById('items-body');
+    tbody.innerHTML = '<tr id="empty-row"><td colspan="5" class="text-center text-muted py-3 small">Agregue productos al ingreso…</td></tr>';
+  }
+  calcTotal();
+}
+
+function calcTotal() {
+  let total = 0;
+  document.querySelectorAll('#items-body td[data-sub]').forEach(td => {
+    total += parseFloat(td.dataset.sub);
+  });
+  document.getElementById('res-total').textContent = `$${total.toFixed(2)}`;
+  document.getElementById('btn-confirmar').disabled = itemCount === 0;
+}
+</script>
+{% endblock %}
