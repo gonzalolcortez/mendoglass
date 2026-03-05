@@ -32,6 +32,22 @@
 </ul>
 
 {% if tab == 'productos' %}
+<div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
+  <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+    <input type="hidden" name="tab" value="productos">
+    <input type="text" name="q" value="{{ q }}" class="form-control form-control-sm" placeholder="Buscar producto…" style="max-width:220px">
+    <select name="categoria_id" class="form-select form-select-sm" style="max-width:180px">
+      <option value="">Todas las categorías</option>
+      {% for c in categorias %}
+      <option value="{{ c.id }}" {% if categoria_id == c.id|string %}selected{% endif %}>{{ c.nombre }}</option>
+      {% endfor %}
+    </select>
+    <button class="btn btn-sm btn-secondary"><i class="bi bi-search"></i></button>
+    {% if q or categoria_id %}
+    <a href="?tab=productos" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+    {% endif %}
+  </form>
+</div>
 <div class="table-card">
   {% if productos %}
   <table class="table table-hover">
@@ -65,7 +81,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="p-5 text-center text-muted"><i class="bi bi-box-seam fs-1 d-block mb-2"></i>Sin productos.</div>
+  <div class="p-5 text-center text-muted"><i class="bi bi-box-seam fs-1 d-block mb-2"></i>Sin productos{% if q or categoria_id %} para los filtros aplicados{% endif %}.</div>
   {% endif %}
 </div>
 

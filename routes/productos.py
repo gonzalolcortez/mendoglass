@@ -9,11 +9,23 @@ productos_bp = Blueprint('productos', __name__)
 @login_required
 def index():
     tab = request.args.get('tab', 'productos')
-    productos = Producto.query.order_by(Producto.nombre).all()
+    q = request.args.get('q', '').strip()
+    categoria_id = request.args.get('categoria_id', '')
+
+    productos_query = Producto.query
+    if q:
+        productos_query = productos_query.filter(Producto.nombre.ilike(f'%{q}%'))
+    if categoria_id:
+        try:
+            productos_query = productos_query.filter_by(categoria_id=int(categoria_id))
+        except ValueError:
+            categoria_id = ''
+    productos = productos_query.order_by(Producto.nombre).all()
+
     servicios = Servicio.query.order_by(Servicio.nombre).all()
     categorias = Categoria.query.order_by(Categoria.nombre).all()
     return render_template('productos/index.html', productos=productos, servicios=servicios,
-                           categorias=categorias, tab=tab)
+                           categorias=categorias, tab=tab, q=q, categoria_id=categoria_id)
 
 
 # ── Categorías ──────────────────────────────────────────────────────────────

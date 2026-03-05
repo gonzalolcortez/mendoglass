@@ -127,6 +127,7 @@ class Taller(db.Model):
         ('recibido', 'Recibido'),
         ('diagnostico', 'En Diagnóstico'),
         ('en_reparacion', 'En Reparación'),
+        ('sin_solucion', 'Sin Solución'),
         ('listo', 'Listo'),
         ('entregado', 'Entregado'),
         ('cancelado', 'Cancelado'),

@@ -84,12 +84,12 @@
                    value="{{ taller.fecha_estimada_entrega.strftime('%Y-%m-%d') if taller and taller.fecha_estimada_entrega else '' }}">
           </div>
           <div class="col-sm-6">
-            <label class="form-label fw-semibold">Costo estimado ($)</label>
+            <label class="form-label fw-semibold">Precio estimado ($)</label>
             <input type="number" name="costo_estimado" class="form-control" step="0.01" min="0"
                    value="{{ taller.costo_estimado if taller else '0' }}">
           </div>
           <div class="col-sm-6">
-            <label class="form-label fw-semibold">Costo final de reparación ($)
+            <label class="form-label fw-semibold">Precio final de reparación ($)
               <small class="text-muted">(0 = calculado por piezas+servicios)</small>
             </label>
             <input type="number" name="costo_reparacion" class="form-control" step="0.01" min="0"
