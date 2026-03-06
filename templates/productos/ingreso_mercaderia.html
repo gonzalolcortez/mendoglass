@@ -50,7 +50,7 @@
           <div class="col-sm-5">
             <label class="form-label small fw-semibold">Producto existente</label>
             <select id="sel-producto" class="form-select form-select-sm">
-              <option value="">— Nuevo producto —</option>
+              <option value="">— Seleccionar producto —</option>
               {% for p in productos %}
               <option value="{{ p.id }}" data-precio="{{ p.precio_compra }}" data-nombre="{{ p.nombre }}">
                 {{ p.nombre }} (stock: {{ p.stock_actual }})
@@ -58,9 +58,10 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-sm-3">
-            <label class="form-label small fw-semibold">Nombre (si es nuevo)</label>
-            <input type="text" id="sel-nombre" class="form-control form-control-sm" placeholder="Nombre del producto">
+          <div class="col-sm-2 d-flex align-items-end">
+            <button type="button" class="btn btn-sm btn-success w-100" data-bs-toggle="modal" data-bs-target="#modalNuevoProducto">
+              <i class="bi bi-plus-circle me-1"></i>Nuevo Producto
+            </button>
           </div>
           <div class="col-sm-1">
             <label class="form-label small fw-semibold">Cant.</label>
@@ -70,9 +71,9 @@
             <label class="form-label small fw-semibold">Precio Compra</label>
             <input type="number" id="sel-precio" class="form-control form-control-sm" step="0.01" min="0" value="0">
           </div>
-          <div class="col-sm-1">
+          <div class="col-sm-2">
             <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarItem()">
-              <i class="bi bi-plus"></i>
+              <i class="bi bi-plus"></i> Agregar
             </button>
           </div>
         </div>
@@ -118,6 +119,66 @@
     </div>
   </div>
 </form>
+
+<!-- Modal: Nuevo Producto -->
+<div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-labelledby="modalNuevoProductoLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalNuevoProductoLabel"><i class="bi bi-box-seam me-2"></i>Crear Nuevo Producto</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-alert" class="alert alert-danger d-none py-2 small"></div>
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label fw-semibold">Nombre *</label>
+            <input type="text" id="np-nombre" class="form-control" placeholder="Nombre del producto" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Código de Barras</label>
+            <input type="text" id="np-codigo_barras" class="form-control" placeholder="Ej: 7790001234567">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Descripción</label>
+            <textarea id="np-descripcion" class="form-control" rows="2" placeholder="Descripción opcional…"></textarea>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Categoría</label>
+            <select id="np-categoria_id" class="form-select">
+              <option value="">Sin categoría</option>
+              {% for cat in categorias %}
+              <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Unidad</label>
+            <input type="text" id="np-unidad" class="form-control" value="unidad" placeholder="unidad, kg, m…">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Precio de Compra ($)</label>
+            <input type="number" id="np-precio_compra" class="form-control" step="0.01" min="0" value="0">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Precio de Venta ($) *</label>
+            <input type="number" id="np-precio_venta" class="form-control" step="0.01" min="0" value="0" required>
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Stock mínimo</label>
+            <input type="number" id="np-stock_minimo" class="form-control" min="0" value="5">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="button" class="btn btn-success" id="btn-crear-producto" onclick="crearNuevoProducto()">
+          <i class="bi bi-check-lg me-1"></i>Crear y agregar al ingreso
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -127,7 +188,6 @@ const productoMap = {};
 productosData.forEach(p => productoMap[p.id] = p);
 
 const selProducto = document.getElementById('sel-producto');
-const selNombre = document.getElementById('sel-nombre');
 const selPrecio = document.getElementById('sel-precio');
 
 selProducto.addEventListener('change', function() {
@@ -135,11 +195,9 @@ selProducto.addEventListener('change', function() {
   if (id) {
     const p = productoMap[parseInt(id)];
     if (p) {
-      selNombre.value = p.nombre;
       selPrecio.value = p.precio_compra.toFixed(2);
     }
   } else {
-    selNombre.value = '';
     selPrecio.value = '0';
   }
 });
@@ -148,20 +206,29 @@ let itemCount = 0;
 
 function agregarItem() {
   const productoId = selProducto.value;
-  const nombre = productoId
-    ? productoMap[parseInt(productoId)].nombre
-    : selNombre.value.trim();
-
-  if (!nombre) {
-    selNombre.classList.add('is-invalid');
-    setTimeout(() => selNombre.classList.remove('is-invalid'), 1500);
+  if (!productoId) {
+    selProducto.classList.add('is-invalid');
+    setTimeout(() => selProducto.classList.remove('is-invalid'), 1500);
     return;
   }
+
+  const p = productoMap[parseInt(productoId)];
+  const nombre = p ? p.nombre : '';
+  if (!nombre) return;
 
   const cant = parseInt(document.getElementById('sel-cantidad').value) || 1;
   const precio = parseFloat(selPrecio.value) || 0;
   const subtotal = cant * precio;
 
+  agregarFila(nombre, productoId, cant, precio, subtotal);
+
+  // Reset selectors
+  selProducto.value = '';
+  selPrecio.value = '0';
+  document.getElementById('sel-cantidad').value = '1';
+}
+
+function agregarFila(nombre, productoId, cant, precio, subtotal) {
   const emptyRow = document.getElementById('empty-row');
   if (emptyRow) emptyRow.remove();
 
@@ -169,9 +236,9 @@ function agregarItem() {
   const tr = document.createElement('tr');
   tr.className = 'item-row';
   tr.innerHTML = `
-    <td>${nombre}
+    <td>${escapeHtml(nombre)}
       <input type="hidden" name="item_producto_id[]" value="${productoId || 0}">
-      <input type="hidden" name="item_nombre[]" value="${nombre}">
+      <input type="hidden" name="item_nombre[]" value="${escapeHtml(nombre)}">
     </td>
     <td class="text-center">
       <input type="hidden" name="item_cantidad[]" value="${cant}">${cant}
@@ -188,14 +255,12 @@ function agregarItem() {
     </td>`;
   tbody.appendChild(tr);
   itemCount++;
-
-  // Reset selectors
-  selProducto.value = '';
-  selNombre.value = '';
-  selPrecio.value = '0';
-  document.getElementById('sel-cantidad').value = '1';
-
   calcTotal();
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function quitarItem(btn) {
@@ -216,5 +281,95 @@ function calcTotal() {
   document.getElementById('res-total').textContent = `$${total.toFixed(2)}`;
   document.getElementById('btn-confirmar').disabled = itemCount === 0;
 }
+
+function crearNuevoProducto() {
+  const nombre = document.getElementById('np-nombre').value.trim();
+  const precio_venta = parseFloat(document.getElementById('np-precio_venta').value) || 0;
+  const precio_compra = parseFloat(document.getElementById('np-precio_compra').value) || 0;
+  const descripcion = document.getElementById('np-descripcion').value.trim();
+  const codigo_barras = document.getElementById('np-codigo_barras').value.trim();
+  const categoria_id = document.getElementById('np-categoria_id').value || null;
+  const unidad = document.getElementById('np-unidad').value.trim() || 'unidad';
+  const stock_minimo = parseInt(document.getElementById('np-stock_minimo').value) || 5;
+  const cant = parseInt(document.getElementById('sel-cantidad').value) || 1;
+
+  const alertEl = document.getElementById('modal-alert');
+  alertEl.classList.add('d-none');
+
+  if (!nombre) {
+    alertEl.textContent = 'El nombre del producto es obligatorio.';
+    alertEl.classList.remove('d-none');
+    document.getElementById('np-nombre').focus();
+    return;
+  }
+
+  const btnCrear = document.getElementById('btn-crear-producto');
+  btnCrear.disabled = true;
+  btnCrear.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Creando…';
+
+  fetch('{{ url_for("productos.api_nuevo_producto") }}', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre, descripcion, codigo_barras, categoria_id, precio_compra, precio_venta, stock_minimo, unidad })
+  })
+  .then(r => {
+    if (!r.ok) {
+      return r.json().then(d => { throw new Error(d.error || 'Error del servidor.'); });
+    }
+    return r.json();
+  })
+  .then(data => {
+    if (!data.ok) {
+      alertEl.textContent = data.error || 'Error al crear el producto.';
+      alertEl.classList.remove('d-none');
+      return;
+    }
+    const p = data.producto;
+    // Add to in-memory map
+    productoMap[p.id] = p;
+
+    // Add option to dropdown
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.dataset.precio = p.precio_compra;
+    opt.dataset.nombre = p.nombre;
+    opt.textContent = `${p.nombre} (stock: ${p.stock_actual})`;
+    selProducto.appendChild(opt);
+
+    // Auto-add to items table
+    const precioItem = precio_compra;
+    const subtotal = cant * precioItem;
+    agregarFila(p.nombre, p.id, cant, precioItem, subtotal);
+
+    // Reset modal fields
+    document.getElementById('np-nombre').value = '';
+    document.getElementById('np-descripcion').value = '';
+    document.getElementById('np-codigo_barras').value = '';
+    document.getElementById('np-categoria_id').value = '';
+    document.getElementById('np-unidad').value = 'unidad';
+    document.getElementById('np-precio_compra').value = '0';
+    document.getElementById('np-precio_venta').value = '0';
+    document.getElementById('np-stock_minimo').value = '5';
+    document.getElementById('sel-cantidad').value = '1';
+    selPrecio.value = '0';
+
+    // Close modal
+    const modalInstance = bootstrap.Modal.getInstance(document.getElementById('modalNuevoProducto'));
+    if (modalInstance) modalInstance.hide();
+  })
+  .catch(err => {
+    alertEl.textContent = err.message || 'Error de conexión. Intente nuevamente.';
+    alertEl.classList.remove('d-none');
+  })
+  .finally(() => {
+    btnCrear.disabled = false;
+    btnCrear.innerHTML = '<i class="bi bi-check-lg me-1"></i>Crear y agregar al ingreso';
+  });
+}
+
+// Clear modal alert when reopened
+document.getElementById('modalNuevoProducto').addEventListener('show.bs.modal', function() {
+  document.getElementById('modal-alert').classList.add('d-none');
+});
 </script>
 {% endblock %}
