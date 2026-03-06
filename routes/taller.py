@@ -313,3 +313,22 @@ def eliminar(id):
 def imprimir(id):
     taller = Taller.query.get_or_404(id)
     return render_template('taller/print.html', taller=taller)
+
+
+@taller_bp.route('/<int:id>/ticket')
+@login_required
+def ticket(id):
+    taller = Taller.query.get_or_404(id)
+    orden = {
+        'fecha': taller.fecha_ingreso.strftime('%d/%m/%Y'),
+        'numero': taller.numero,
+        'cliente': taller.cliente.nombre_completo,
+        'equipo': taller.tipo_equipo or '—',
+        'marca': taller.marca or '—',
+        'modelo': taller.modelo or '—',
+        'problema': taller.descripcion_problema,
+        'precio': f"{taller.costo_estimado:.2f}" if taller.costo_estimado is not None else '—',
+        'tecnico': taller.tecnico or '—',
+        'entrega': taller.fecha_estimada_entrega.strftime('%d/%m/%Y') if taller.fecha_estimada_entrega else '—',
+    }
+    return render_template('taller/ticket.html', orden=orden)

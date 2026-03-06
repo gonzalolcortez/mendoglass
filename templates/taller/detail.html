@@ -9,6 +9,9 @@
 <a href="{{ url_for('taller.imprimir', id=taller.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">
   <i class="bi bi-printer me-1"></i>Imprimir A5
 </a>
+<a href="{{ url_for('taller.ticket', id=taller.id) }}" class="btn btn-sm btn-outline-secondary" target="_blank">
+  <i class="bi bi-receipt me-1"></i>Ticket 55mm
+</a>
 {% if taller.estado != 'entregado' and taller.estado != 'cancelado' %}
 <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#modalEntregar">
   <i class="bi bi-check-circle me-1"></i>Entregado

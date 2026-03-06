@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ticket Orden #{{ orden.numero }} — Mendotecn</title>
+  <style>
+    @page {
+      size: 55mm auto;
+      margin: 2mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 9px;
+      width: 51mm;
+      color: #000;
+      background: #fff;
+    }
+
+    .ticket {
+      width: 51mm;
+      padding: 2mm 0;
+    }
+
+    .ticket + .ticket {
+      margin-top: 4mm;
+      border-top: 1px dashed #000;
+      padding-top: 4mm;
+    }
+
+    .sep {
+      border: none;
+      border-top: 1px solid #000;
+      margin: 2mm 0;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .bold {
+      font-weight: bold;
+    }
+
+    .title {
+      font-size: 11px;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .label {
+      font-weight: bold;
+    }
+
+    .row {
+      margin: 1mm 0;
+      word-wrap: break-word;
+    }
+
+    @media print {
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .no-print {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Print button (hidden on print) -->
+<div class="no-print" style="margin-bottom:8px; text-align:center">
+  <button onclick="window.print()"
+          style="padding:5px 14px; background:#000; color:#fff; border:none; cursor:pointer; font-family:monospace; font-size:12px;">
+    Imprimir Ticket
+  </button>
+</div>
+
+{% for i in range(2) %}
+<div class="ticket">
+
+  <hr class="sep">
+  <div class="title">MENDOTECN</div>
+  <hr class="sep">
+  <div class="center row">San Juan 721</div>
+  <div class="center row">Mendoza Ciudad</div>
+  <div class="center row bold" style="margin-top:2mm;">ORDEN DE TALLER</div>
+  <hr class="sep">
+
+  <div class="row"><span class="label">Fecha:</span> {{ orden.fecha }}</div>
+  <div class="row"><span class="label">Orden:</span> {{ orden.numero }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Cliente:</span> {{ orden.cliente }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Equipo:</span> {{ orden.equipo }}</div>
+  <div class="row"><span class="label">Marca:</span> {{ orden.marca }}</div>
+  <div class="row"><span class="label">Modelo:</span> {{ orden.modelo }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Problema tecnico:</span></div>
+  <div class="row">{{ orden.problema }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Precio estimado:</span></div>
+  <div class="row">${{ orden.precio }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Tecnico asignado:</span></div>
+  <div class="row">{{ orden.tecnico }}</div>
+
+  <div class="row" style="margin-top:2mm;"><span class="label">Entrega estimada:</span></div>
+  <div class="row">{{ orden.entrega }}</div>
+
+  <hr class="sep" style="margin-top:3mm;">
+  <div class="center row">Whatsapp 261-723-4524</div>
+  <div class="center row">Lun-Vie 10-18:30</div>
+  <div class="center row">Sab 10-13</div>
+  <hr class="sep">
+
+</div>
+{% endfor %}
+
+<script>window.print();</script>
+</body>
+</html>
