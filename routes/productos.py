@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from models import (db, Producto, Servicio, Categoria, Proveedor,
                     IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO)
@@ -266,5 +266,63 @@ def nuevo_ingreso_mercaderia():
 
     return render_template('productos/ingreso_mercaderia.html',
                            productos=productos_json, proveedores=proveedores,
-                           formas_pago=FORMAS_PAGO)
+                           formas_pago=FORMAS_PAGO,
+                           categorias=Categoria.query.order_by(Categoria.nombre).all())
+
+
+# ── API: Crear producto desde modal ─────────────────────────────────────────
+
+@productos_bp.route('/api/nuevo-producto', methods=['POST'])
+@login_required
+def api_nuevo_producto():
+    try:
+        data = request.get_json(force=True, silent=False) or {}
+    except Exception:
+        return jsonify({'ok': False, 'error': 'Cuerpo JSON inválido.'}), 400
+    if not isinstance(data, dict):
+        return jsonify({'ok': False, 'error': 'Cuerpo JSON inválido.'}), 400
+    nombre = (data.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'ok': False, 'error': 'El nombre es obligatorio.'}), 400
+    try:
+        precio_venta = float(data.get('precio_venta') or 0)
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Precio de venta inválido.'}), 400
+    try:
+        precio_compra = float(data.get('precio_compra') or 0)
+        stock_minimo = int(data.get('stock_minimo') or 5)
+    except (ValueError, TypeError):
+        return jsonify({'ok': False, 'error': 'Datos numéricos inválidos.'}), 400
+
+    categoria_id = data.get('categoria_id') or None
+    if categoria_id:
+        try:
+            categoria_id = int(categoria_id)
+        except (ValueError, TypeError):
+            categoria_id = None
+
+    prod = Producto(
+        nombre=nombre,
+        descripcion=(data.get('descripcion') or '').strip(),
+        codigo_barras=(data.get('codigo_barras') or '').strip() or None,
+        categoria_id=categoria_id,
+        precio_compra=precio_compra,
+        precio_venta=precio_venta,
+        stock_actual=0,
+        stock_minimo=stock_minimo,
+        unidad=(data.get('unidad') or 'unidad').strip(),
+        activo=True,
+    )
+    db.session.add(prod)
+    db.session.commit()
+    return jsonify({
+        'ok': True,
+        'producto': {
+            'id': prod.id,
+            'nombre': prod.nombre,
+            'precio_compra': prod.precio_compra,
+            'stock_actual': prod.stock_actual,
+            'codigo_barras': prod.codigo_barras or '',
+        }
+    }), 201
 
