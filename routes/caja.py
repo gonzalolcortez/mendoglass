@@ -10,8 +10,9 @@ caja_bp = Blueprint('caja', __name__)
 @caja_bp.route('/')
 @login_required
 def index():
-    fecha_desde = request.args.get('fecha_desde', '')
-    fecha_hasta = request.args.get('fecha_hasta', '')
+    today = date.today().strftime('%Y-%m-%d')
+    fecha_desde = request.args.get('fecha_desde', today)
+    fecha_hasta = request.args.get('fecha_hasta', today)
     tipo = request.args.get('tipo', '')
 
     query = MovimientoCaja.query

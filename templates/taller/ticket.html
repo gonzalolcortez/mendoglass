@@ -58,6 +58,14 @@
       font-weight: bold;
     }
 
+    .orden-numero {
+      font-size: 16px;
+      font-weight: bold;
+      text-align: center;
+      margin: 3mm 0;
+      letter-spacing: 1px;
+    }
+
     .row {
       margin: 1mm 0;
       word-wrap: break-word;
@@ -96,7 +104,7 @@
   <hr class="sep">
 
   <div class="row"><span class="label">Fecha:</span> {{ orden.fecha }}</div>
-  <div class="row"><span class="label">Orden:</span> {{ orden.numero }}</div>
+  <div class="orden-numero">ORDEN N° {{ orden.numero }}</div>
 
   <div class="row" style="margin-top:2mm;"><span class="label">Cliente:</span> {{ orden.cliente }}</div>
 

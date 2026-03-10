@@ -104,4 +104,39 @@
     <i class="bi bi-cash-coin me-1"></i>Ver detalle en Caja
   </a>
 </div>
+
+<!-- Saldo por cuenta -->
+<div class="table-card mt-4">
+  <div class="p-3 border-bottom fw-semibold">Saldo por Cuenta</div>
+  <table class="table table-hover mb-0">
+    <thead>
+      <tr>
+        <th>Cuenta</th>
+        <th class="text-end">Ingresos</th>
+        <th class="text-end">Egresos</th>
+        <th class="text-end">Saldo</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for c in saldos_cuentas %}
+    {% if c.ingresos > 0 or c.egresos > 0 %}
+    <tr>
+      <td class="fw-semibold">{{ c.nombre }}</td>
+      <td class="text-end text-success">${{ "%.2f"|format(c.ingresos) }}</td>
+      <td class="text-end text-danger">${{ "%.2f"|format(c.egresos) }}</td>
+      <td class="text-end fw-bold {% if c.saldo >= 0 %}text-success{% else %}text-danger{% endif %}">
+        ${{ "%.2f"|format(c.saldo) }}
+      </td>
+      <td class="text-end">
+        <a href="{{ url_for('contabilidad.detalle_cuenta', cuenta=c.cuenta) }}" class="btn btn-sm btn-outline-primary py-0">
+          <i class="bi bi-eye me-1"></i>Ver movimientos
+        </a>
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
