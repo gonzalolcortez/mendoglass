@@ -22,6 +22,23 @@ def _next_numero():
     return (last or 0) + 1
 
 
+def _registrar_costos_repuestos(taller, forma_pago):
+    """Create egreso MovimientoCaja entries for the purchase cost of each product used in the repair."""
+    for tp in taller.productos_usados:
+        costo = (tp.producto.precio_compra or 0.0) * tp.cantidad
+        if costo > 0:
+            db.session.add(MovimientoCaja(
+                tipo='egreso',
+                cuenta='servicio_tecnico',
+                forma_pago=forma_pago,
+                concepto=f'Costo repuesto: {tp.producto.nombre} (Orden #{taller.numero})',
+                monto=costo,
+                referencia_tipo='taller',
+                referencia_id=taller.id,
+                fecha=datetime.utcnow(),
+            ))
+
+
 @taller_bp.route('/')
 @login_required
 def index():
@@ -248,6 +265,7 @@ def entregar(id):
             fecha=datetime.utcnow(),
         )
         db.session.add(mov)
+        _registrar_costos_repuestos(taller, forma_pago)
         db.session.commit()
         flash(f'Orden #{taller.numero} marcada como entregada y paga. Se registró ingreso de ${monto:.2f} en Caja.', 'success')
     return redirect(url_for('taller.detalle', id=id))
@@ -277,6 +295,7 @@ def cobrar_deuda(id):
         fecha=datetime.utcnow(),
     )
     db.session.add(mov)
+    _registrar_costos_repuestos(taller, forma_pago)
     db.session.commit()
     flash(f'Deuda de la orden #{taller.numero} cobrada. Se registró ingreso de ${monto:.2f} en Caja.', 'success')
     return redirect(url_for('taller.detalle', id=id))
