@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+
+{% block title %}Libro IVA Ventas{% endblock %}
+{% block page_title %}Libro IVA Ventas{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('facturacion.index') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i>Volver
+  </a>
+{% endblock %}
+
+{% block content %}
+
+<!-- Filtro de período -->
+<div class="form-card mb-3">
+  <form method="GET" class="row g-2 align-items-end">
+    <div class="col-auto">
+      <label class="form-label fw-semibold mb-1">Desde</label>
+      <input type="date" name="desde" class="form-control form-control-sm"
+             value="{{ desde.strftime('%Y-%m-%d') }}">
+    </div>
+    <div class="col-auto">
+      <label class="form-label fw-semibold mb-1">Hasta</label>
+      <input type="date" name="hasta" class="form-control form-control-sm"
+             value="{{ hasta.strftime('%Y-%m-%d') }}">
+    </div>
+    <div class="col-auto">
+      <button type="submit" class="btn btn-primary btn-sm">
+        <i class="bi bi-search me-1"></i>Filtrar
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Tabla -->
+<div class="table-card">
+  <div class="p-3 border-bottom d-flex align-items-center gap-2">
+    <i class="bi bi-journal-text text-primary fs-5"></i>
+    <span class="fw-semibold">
+      Período: {{ desde.strftime('%d/%m/%Y') }} – {{ hasta.strftime('%d/%m/%Y') }}
+    </span>
+    <span class="badge bg-secondary ms-1">{{ facturas|length }} comprobantes</span>
+  </div>
+
+  {% if facturas %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0 small">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Tipo</th>
+          <th>N° Comprobante</th>
+          <th>Cliente</th>
+          <th>CUIT Receptor</th>
+          <th class="text-end">Neto</th>
+          <th class="text-end">IVA 21%</th>
+          <th class="text-end">Total</th>
+          <th>CAE</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in facturas %}
+        <tr>
+          <td>{{ f.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>
+            <span class="badge"
+              style="background:{% if f.letra=='A' %}#dbeafe;color:#1d4ed8{% elif f.letra=='B' %}#d1fae5;color:#065f46{% else %}#fef3c7;color:#92400e{% endif %}">
+              Fact. {{ f.letra }}
+            </span>
+          </td>
+          <td class="font-monospace">{{ f.numero_display }}</td>
+          <td>{{ f.cliente.nombre }}</td>
+          <td class="font-monospace">{{ f.cliente.cuit or '—' }}</td>
+          <td class="text-end">$ {{ '{:,.2f}'.format(f.subtotal|float) }}</td>
+          <td class="text-end">$ {{ '{:,.2f}'.format(f.iva|float) }}</td>
+          <td class="text-end fw-semibold">$ {{ '{:,.2f}'.format(f.total|float) }}</td>
+          <td class="font-monospace">{{ f.cae or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot class="table-light fw-bold">
+        <tr>
+          <td colspan="5" class="text-end">Totales del período:</td>
+          <td class="text-end">$ {{ '{:,.2f}'.format(total_neto) }}</td>
+          <td class="text-end">$ {{ '{:,.2f}'.format(total_iva) }}</td>
+          <td class="text-end">$ {{ '{:,.2f}'.format(total_total) }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-journal-x fs-1 d-block mb-3 opacity-25"></i>
+    <p>No hay comprobantes emitidos en el período seleccionado.</p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

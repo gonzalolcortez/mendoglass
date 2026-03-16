@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+
+{% block title %}Clientes de Facturación{% endblock %}
+{% block page_title %}Clientes de Facturación{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('facturacion.nuevo_cliente') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nuevo Cliente
+  </a>
+  <a href="{{ url_for('facturacion.index') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-receipt me-1"></i>Facturas
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  <div class="p-3 border-bottom d-flex align-items-center gap-2">
+    <i class="bi bi-person-badge text-primary fs-5"></i>
+    <span class="fw-semibold">Clientes registrados</span>
+    <span class="badge bg-secondary ms-1">{{ clientes|length }}</span>
+  </div>
+  {% if clientes %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Nombre / Razón Social</th>
+          <th>Condición IVA</th>
+          <th>CUIT</th>
+          <th>Domicilio</th>
+          <th>E-mail</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in clientes %}
+        <tr>
+          <td class="fw-semibold">{{ c.nombre }}</td>
+          <td>{{ condiciones_iva.get(c.condicion_iva, c.condicion_iva) }}</td>
+          <td class="font-monospace">{{ c.cuit or '—' }}</td>
+          <td>{{ c.direccion or '—' }}</td>
+          <td>{{ c.email or '—' }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('facturacion.editar_cliente', id=c.id) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-pencil"></i>
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-person-badge fs-1 d-block mb-3 opacity-25"></i>
+    <p class="mb-1">No hay clientes de facturación registrados.</p>
+    <a href="{{ url_for('facturacion.nuevo_cliente') }}" class="btn btn-primary mt-2">
+      <i class="bi bi-plus-lg me-1"></i>Agregar cliente
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
