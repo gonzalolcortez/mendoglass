@@ -6,3 +6,8 @@ Werkzeug==3.0.1
 gunicorn
 psycopg2-binary==2.9.10
 requests==2.32.3
+reportlab==4.2.5
+qrcode==7.4.2
+Pillow==10.4.0
+# pyafipws no está disponible en PyPI para Python 3; se instala desde GitHub:
+pyafipws @ git+https://github.com/reingart/pyafipws.git@d595b072110accec9dae1ddb58165ab847b8520a

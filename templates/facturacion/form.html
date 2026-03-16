@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .item-row td { vertical-align: middle; }
+  #items-table tfoot td { background: #f8f9fb; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form method="POST">
+<div class="row g-3">
+
+  <!-- Encabezado de la factura -->
+  <div class="col-12">
+    <div class="form-card">
+      <p class="section-title">Datos del comprobante</p>
+      <div class="row g-3">
+
+        <div class="col-md-4">
+          <label class="form-label fw-semibold">Cliente <span class="text-danger">*</span></label>
+          <div class="input-group">
+            <select name="cliente_id" class="form-select" required>
+              <option value="">— Seleccioná un cliente —</option>
+              {% for c in clientes %}
+              <option value="{{ c.id }}">{{ c.nombre }}
+                {% if c.condicion_iva != 'CF' %} ({{ c.condicion_iva }}){% endif %}
+              </option>
+              {% endfor %}
+            </select>
+            <a href="{{ url_for('facturacion.nuevo_cliente') }}"
+               class="btn btn-outline-secondary" title="Nuevo cliente" target="_blank">
+              <i class="bi bi-plus"></i>
+            </a>
+          </div>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Tipo de comprobante</label>
+          <select name="tipo_cbte" class="form-select">
+            {% for cod, nombre in tipos_cbte %}
+            <option value="{{ cod }}" {% if cod == 6 %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Punto de venta</label>
+          <input type="number" name="punto_vta" class="form-control" value="1" min="1" max="9999">
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Fecha</label>
+          <input type="date" name="fecha" class="form-control"
+                 value="{{ today.strftime('%Y-%m-%d') if today else '' }}">
+        </div>
+
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">Concepto</label>
+          <select name="concepto" class="form-select">
+            {% for cod, nombre in conceptos %}
+            <option value="{{ cod }}" {% if cod == 1 %}selected{% endif %}>{{ nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Forma de pago</label>
+          <select name="forma_pago" class="form-select">
+            {% for val, label in formas_pago %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-md-9">
+          <label class="form-label fw-semibold">Observaciones</label>
+          <input type="text" name="notas" class="form-control"
+                 placeholder="Observaciones opcionales…">
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Ítems -->
+  <div class="col-12">
+    <div class="form-card">
+      <p class="section-title">Detalle de productos / servicios</p>
+      <div class="table-responsive">
+        <table class="table" id="items-table">
+          <thead>
+            <tr>
+              <th style="width:55%">Descripción</th>
+              <th style="width:12%">Cantidad</th>
+              <th style="width:18%">Precio unitario</th>
+              <th style="width:13%" class="text-end">Subtotal</th>
+              <th style="width:5%"></th>
+            </tr>
+          </thead>
+          <tbody id="items-body">
+            <tr class="item-row">
+              <td><input type="text" name="item_descripcion[]" class="form-control form-control-sm" placeholder="Descripción…" required></td>
+              <td><input type="number" name="item_cantidad[]" class="form-control form-control-sm item-qty" value="1" min="0.01" step="0.01"></td>
+              <td><input type="number" name="item_precio[]" class="form-control form-control-sm item-price" value="0" min="0" step="0.01"></td>
+              <td class="text-end fw-semibold item-subtotal">$ 0,00</td>
+              <td><button type="button" class="btn btn-sm btn-outline-danger remove-row"><i class="bi bi-x"></i></button></td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" class="fw-bold text-end">TOTAL:</td>
+              <td class="fw-bold text-end" id="total-display">$ 0,00</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <button type="button" class="btn btn-outline-primary btn-sm" id="add-row">
+        <i class="bi bi-plus me-1"></i>Agregar ítem
+      </button>
+    </div>
+  </div>
+
+  <div class="col-12 d-flex gap-2 justify-content-end">
+    <a href="{{ url_for('facturacion.index') }}" class="btn btn-outline-secondary">Cancelar</a>
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-floppy me-1"></i>Guardar borrador
+    </button>
+  </div>
+
+</div>
+</form>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  const tbody = document.getElementById('items-body');
+  const totalDisplay = document.getElementById('total-display');
+
+  function fmt(n) {
+    return '$ ' + n.toLocaleString('es-AR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+
+  function recalc() {
+    let total = 0;
+    tbody.querySelectorAll('.item-row').forEach(row => {
+      const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+      const price = parseFloat(row.querySelector('.item-price').value) || 0;
+      const sub = qty * price;
+      row.querySelector('.item-subtotal').textContent = fmt(sub);
+      total += sub;
+    });
+    totalDisplay.textContent = fmt(total);
+  }
+
+  function addRemoveListener(row) {
+    row.querySelector('.remove-row').addEventListener('click', () => {
+      if (tbody.querySelectorAll('.item-row').length > 1) {
+        row.remove();
+        recalc();
+      }
+    });
+  }
+
+  function addInputListeners(row) {
+    row.querySelectorAll('input[type=number]').forEach(inp => {
+      inp.addEventListener('input', recalc);
+    });
+  }
+
+  document.getElementById('add-row').addEventListener('click', () => {
+    const first = tbody.querySelector('.item-row');
+    const clone = first.cloneNode(true);
+    clone.querySelector('input[name="item_descripcion[]"]').value = '';
+    clone.querySelector('.item-qty').value = '1';
+    clone.querySelector('.item-price').value = '0';
+    clone.querySelector('.item-subtotal').textContent = '$ 0,00';
+    tbody.appendChild(clone);
+    addRemoveListener(clone);
+    addInputListeners(clone);
+  });
+
+  tbody.querySelectorAll('.item-row').forEach(row => {
+    addRemoveListener(row);
+    addInputListeners(row);
+  });
+
+  // Fecha por defecto = hoy
+  const fechaInput = document.querySelector('input[name="fecha"]');
+  if (fechaInput && !fechaInput.value) {
+    fechaInput.value = new Date().toISOString().split('T')[0];
+  }
+</script>
+{% endblock %}

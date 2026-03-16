@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}Facturas{% endblock %}
+{% block page_title %}Facturación Electrónica{% endblock %}
+
+{% block topbar_actions %}
+  <a href="{{ url_for('facturacion.nueva') }}" class="btn btn-sm btn-primary">
+    <i class="bi bi-plus-lg me-1"></i>Nueva Factura
+  </a>
+  <a href="{{ url_for('facturacion.clientes') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-people me-1"></i>Clientes
+  </a>
+  <a href="{{ url_for('facturacion.libro_iva') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-journal-text me-1"></i>Libro IVA
+  </a>
+{% endblock %}
+
+{% block content %}
+<div class="table-card">
+  <div class="p-3 border-bottom d-flex align-items-center gap-2">
+    <i class="bi bi-receipt text-primary fs-5"></i>
+    <span class="fw-semibold">Comprobantes electrónicos</span>
+    <span class="badge bg-secondary ms-1">{{ facturas|length }}</span>
+  </div>
+  {% if facturas %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>N° Comprobante</th>
+          <th>Tipo</th>
+          <th>Fecha</th>
+          <th>Cliente</th>
+          <th class="text-end">Total</th>
+          <th>Estado</th>
+          <th>CAE</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in facturas %}
+        <tr>
+          <td class="fw-semibold">{{ f.numero_display }}</td>
+          <td>
+            <span class="badge"
+              style="background:{% if f.letra=='A' %}#dbeafe;color:#1d4ed8{% elif f.letra=='B' %}#d1fae5;color:#065f46{% else %}#fef3c7;color:#92400e{% endif %}">
+              Factura {{ f.letra }}
+            </span>
+          </td>
+          <td>{{ f.fecha.strftime('%d/%m/%Y') }}</td>
+          <td>{{ f.cliente.nombre }}</td>
+          <td class="text-end fw-semibold">$ {{ '{:,.2f}'.format(f.total|float) }}</td>
+          <td>
+            {% if f.estado == 'emitida' %}
+              <span class="badge bg-success">Emitida</span>
+            {% elif f.estado == 'anulada' %}
+              <span class="badge bg-danger">Anulada</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">Borrador</span>
+            {% endif %}
+          </td>
+          <td class="font-monospace small">{{ f.cae or '—' }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('facturacion.detalle', id=f.id) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye"></i>
+            </a>
+            {% if f.estado == 'emitida' %}
+            <a href="{{ url_for('facturacion.pdf', id=f.id) }}"
+               class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-filetype-pdf"></i>
+            </a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-receipt fs-1 d-block mb-3 opacity-25"></i>
+    <p class="mb-1">No hay facturas registradas.</p>
+    <a href="{{ url_for('facturacion.nueva') }}" class="btn btn-primary mt-2">
+      <i class="bi bi-plus-lg me-1"></i>Crear primera factura
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
