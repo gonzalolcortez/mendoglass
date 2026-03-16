@@ -81,13 +81,13 @@ def _cert_key_paths():
         mode='w', suffix='.crt', delete=False
     )
     cert_file.write(cert_pem)
-    cert_file.flush()
+    cert_file.close()
 
     key_file = tempfile.NamedTemporaryFile(
         mode='w', suffix='.key', delete=False
     )
     key_file.write(key_pem)
-    key_file.flush()
+    key_file.close()
 
     return cert_file.name, key_file.name
 

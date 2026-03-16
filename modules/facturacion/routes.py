@@ -145,6 +145,7 @@ def nueva():
                 condiciones_iva=CONDICIONES_IVA,
                 conceptos=CONCEPTOS,
                 formas_pago=FORMAS_PAGO,
+                today=date.today(),
                 title='Nueva Factura',
             )
 
@@ -175,6 +176,7 @@ def nueva():
         condiciones_iva=CONDICIONES_IVA,
         conceptos=CONCEPTOS,
         formas_pago=FORMAS_PAGO,
+        today=date.today(),
         title='Nueva Factura',
     )
 
