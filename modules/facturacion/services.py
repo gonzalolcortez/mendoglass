@@ -182,7 +182,7 @@ def crear_factura(
     if not items:
         raise ValueError('La factura debe tener al menos un ítem.')
 
-    cliente = ClienteFacturacion.query.get(cliente_id)
+    cliente = db.session.get(ClienteFacturacion, cliente_id)
     if not cliente:
         raise ValueError(f'Cliente de facturación con ID {cliente_id} no encontrado.')
 
@@ -244,7 +244,7 @@ def emitir_factura(factura_id):
         ValueError: si la factura no existe o no está en borrador.
         AfipError: si ARCA rechaza el comprobante.
     """
-    factura = Factura.query.get(factura_id)
+    factura = db.session.get(Factura, factura_id)
     if not factura:
         raise ValueError(f'Factura ID {factura_id} no encontrada.')
     if factura.estado != 'borrador':
@@ -266,12 +266,22 @@ def emitir_factura(factura_id):
         cliente.condicion_iva, cliente.cuit
     )
 
+    # Para servicios/mixto incluir el período de prestación (primer día
+    # del mes de la factura hasta la fecha de la factura)
+    fecha_str = factura.fecha.strftime('%Y%m%d')
+    fecha_serv_desde = None
+    fecha_serv_hasta = None
+    if factura.concepto in (2, 3):
+        primer_dia_mes = factura.fecha.replace(day=1)
+        fecha_serv_desde = primer_dia_mes.strftime('%Y%m%d')
+        fecha_serv_hasta = fecha_str
+
     # Solicitar CAE
     resultado = afip.solicitar_cae(
         tipo_cbte=factura.tipo_cbte,
         punto_vta=factura.punto_vta,
         numero=siguiente,
-        fecha=factura.fecha.strftime('%Y%m%d'),
+        fecha=fecha_str,
         concepto=factura.concepto,
         tipo_doc=tipo_doc,
         nro_doc=nro_doc,
@@ -280,6 +290,8 @@ def emitir_factura(factura_id):
         imp_total=float(factura.total),
         alicuota_iva_id=ID_IVA_DEFECTO,
         alicuota_iva_pct=ALICUOTA_IVA_DEFECTO,
+        fecha_serv_desde=fecha_serv_desde,
+        fecha_serv_hasta=fecha_serv_hasta,
     )
 
     # Convertir fecha de vencimiento del CAE (YYYYMMDD → date)
@@ -346,7 +358,7 @@ def anular_factura(factura_id):
     Raises:
         ValueError: si la factura no existe o ya está anulada.
     """
-    factura = Factura.query.get(factura_id)
+    factura = db.session.get(Factura, factura_id)
     if not factura:
         raise ValueError(f'Factura ID {factura_id} no encontrada.')
     if factura.estado == 'anulada':

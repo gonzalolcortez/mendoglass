@@ -187,7 +187,7 @@ def nueva():
 @login_required
 def detalle(id):
     """Muestra el detalle de una factura."""
-    factura = Factura.query.get_or_404(id)
+    factura = db.get_or_404(Factura, id)
     return render_template(
         'facturacion/detalle.html',
         factura=factura,
@@ -227,7 +227,7 @@ def emitir(id):
 @login_required
 def pdf(id):
     """Descarga el PDF del comprobante electrónico."""
-    factura = Factura.query.get_or_404(id)
+    factura = db.get_or_404(Factura, id)
 
     logo_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -365,7 +365,7 @@ def nuevo_cliente():
 @login_required
 def editar_cliente(id):
     """Edita un cliente de facturación existente."""
-    cliente = ClienteFacturacion.query.get_or_404(id)
+    cliente = db.get_or_404(ClienteFacturacion, id)
 
     if request.method == 'POST':
         nombre = request.form.get('nombre', '').strip()

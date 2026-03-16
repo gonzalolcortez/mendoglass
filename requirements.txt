@@ -9,5 +9,8 @@ requests==2.32.3
 reportlab==4.2.5
 qrcode==7.4.2
 Pillow==12.1.1
-# pyafipws no está disponible en PyPI para Python 3; se instala desde GitHub:
+# pyafipws: the PyPI releases (2.7.x) are Python 2 only and incompatible with this
+# project.  The repository has no stable Python 3 release tags, so we pin to the
+# specific commit that matches the installed version (3.12.3145) to ensure
+# reproducible installs without being exposed to untested upstream changes.
 pyafipws @ git+https://github.com/reingart/pyafipws.git@d595b072110accec9dae1ddb58165ab847b8520a

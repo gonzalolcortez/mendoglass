@@ -233,10 +233,10 @@ class AfipClient:
         tipo_cbte: int,
         punto_vta: int,
         numero: int,
-        fecha: str,           # 'YYYYMMDD'
-        concepto: int,        # 1=Productos, 2=Servicios, 3=Mixto
-        tipo_doc: int,        # 80=CUIT, 86=CUIL, 96=DNI, 99=CF
-        nro_doc: str,         # CUIT/DNI del destinatario
+        fecha: str,                   # 'YYYYMMDD'
+        concepto: int,                # 1=Productos, 2=Servicios, 3=Mixto
+        tipo_doc: int,                # 80=CUIT, 86=CUIL, 96=DNI, 99=CF
+        nro_doc: str,                 # CUIT/DNI del destinatario
         imp_neto: float,
         imp_iva: float,
         imp_total: float,
@@ -244,8 +244,15 @@ class AfipClient:
         alicuota_iva_pct: float = ALICUOTA_IVA_DEFECTO,
         moneda_id: str = 'PES',
         moneda_ctz: float = 1.0,
+        fecha_serv_desde: str | None = None,  # 'YYYYMMDD' – requerido si concepto in (2,3)
+        fecha_serv_hasta: str | None = None,  # 'YYYYMMDD' – requerido si concepto in (2,3)
+        condicion_iva_receptor_id: int | None = None,
     ) -> dict:
         """Envía un comprobante a ARCA y devuelve el resultado.
+
+        Para comprobantes de Servicios (concepto=2) o Mixto (concepto=3)
+        ARCA exige ``fecha_serv_desde`` y ``fecha_serv_hasta``.  Si no se
+        suministran se usa ``fecha`` como período de un día.
 
         Returns:
             dict con claves: cae, vencimiento_cae, numero, resultado.
@@ -254,6 +261,11 @@ class AfipClient:
             AfipError: si ARCA rechaza el comprobante o hay error de red.
         """
         wsfe = self._wsfe_conectado()
+
+        # Para servicios/mixto ARCA requiere el período de prestación
+        if concepto in (2, 3):
+            fecha_serv_desde = fecha_serv_desde or fecha
+            fecha_serv_hasta = fecha_serv_hasta or fecha
 
         # Construir la factura
         try:
@@ -274,7 +286,9 @@ class AfipClient:
                 fecha_cbte=fecha,
                 moneda_id=moneda_id,
                 moneda_ctz=moneda_ctz,
-                cond_iva_id=None,
+                fecha_serv_desde=fecha_serv_desde,
+                fecha_serv_hasta=fecha_serv_hasta,
+                condicion_iva_receptor_id=condicion_iva_receptor_id,
             )
         except Exception as exc:
             raise AfipError(f'Error construyendo la factura: {exc}') from exc
@@ -294,13 +308,13 @@ class AfipClient:
             raise AfipError(f'Error solicitando CAE: {exc}') from exc
 
         if wsfe.Resultado != 'A':
-            errores = wsfe.ErrMsg or wsfe.Obs or 'Comprobante rechazado por ARCA'
+            errores = wsfe.ErrMsg or wsfe.Obs or wsfe.Excepcion or 'Comprobante rechazado por ARCA'
             raise AfipError(f'ARCA rechazó el comprobante: {errores}')
 
         return {
             'cae': wsfe.CAE,
             'vencimiento_cae': wsfe.Vencimiento,   # 'YYYYMMDD'
-            'numero': int(wsfe.CbteDesde or numero),
+            'numero': int(wsfe.CbtDesde or numero),
             'resultado': wsfe.Resultado,
         }
 
