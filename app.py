@@ -83,6 +83,43 @@ def _ensure_clientes_columns(app):
         ', '.join(name for name, _ in missing_columns),
     )
 
+
+def _ensure_venta_items_columns(app):
+    """Ensure legacy DBs have the columns required by the current VentaItem model."""
+    required_columns = {
+        'tipo': "VARCHAR(10) NOT NULL DEFAULT 'producto'",
+        'servicio_id': 'INTEGER',
+        'codigo': 'VARCHAR(50)',
+        'descripcion_libre': 'VARCHAR(300)',
+        'unidad': "VARCHAR(20) NOT NULL DEFAULT 'unidad'",
+        'bonificacion': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'alicuota_iva': 'DOUBLE PRECISION NOT NULL DEFAULT 21',
+        'subtotal_neto': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('venta_items'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('venta_items')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE venta_items ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing venta_items columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -131,6 +168,7 @@ def create_app():
         try:
             _ensure_ventas_columns(app)
             _ensure_clientes_columns(app)
+            _ensure_venta_items_columns(app)
         except SQLAlchemyError as e:
             app.logger.error('Could not apply runtime schema patch: %s', e)
 
