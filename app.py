@@ -29,7 +29,6 @@ def create_app():
     from routes.ventas import ventas_bp
     from routes.dashboard import dashboard_bp
     from routes.tecnicos import tecnicos_bp
-    from modules.facturacion.routes import facturacion_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -41,7 +40,6 @@ def create_app():
     app.register_blueprint(contabilidad_bp, url_prefix='/contabilidad')
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
-    app.register_blueprint(facturacion_bp, url_prefix='/facturas')
 
     with app.app_context():
         db.create_all()
