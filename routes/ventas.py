@@ -53,7 +53,6 @@ def _emitir_ante_afip(venta: Venta):
     """Sends the venta to ARCA/AFIP and stores CAE + numero. Raises on error."""
     from modules.facturacion.afip_client import (
         AfipClient, AfipError, tipo_doc_receptor,
-        IVA_0, IVA_10_5, IVA_21, IVA_27,
     )
 
     cliente = venta.cliente
@@ -78,11 +77,25 @@ def _emitir_ante_afip(venta: Venta):
     for item in venta.items:
         alicuota = item.alicuota_iva or 0.0
         if alicuota not in ivas_agrupados:
-            ivas_agrupados[alicuota] = {'base': 0.0, 'monto': 0.0,
-                                         'iva_id': _AFIP_IVA_ID.get(alicuota, 5)}
+            ivas_agrupados[alicuota] = {
+                'base_imp': 0.0,
+                'importe': 0.0,
+                'iva_id': _AFIP_IVA_ID.get(alicuota, 5),
+            }
         base = item.subtotal_neto or 0.0
-        ivas_agrupados[alicuota]['base'] += base
-        ivas_agrupados[alicuota]['monto'] += round(base * alicuota / 100, 2)
+        ivas_agrupados[alicuota]['base_imp'] += base
+        ivas_agrupados[alicuota]['importe'] += round(base * alicuota / 100, 2)
+
+    # Build the list of IVA entries to pass to solicitar_cae
+    ivas = [
+        {
+            'iva_id': datos['iva_id'],
+            'base_imp': round(datos['base_imp'], 2),
+            'importe': round(datos['importe'], 2),
+        }
+        for datos in ivas_agrupados.values()
+        if datos['importe'] > 0
+    ]
 
     imp_neto = venta.subtotal or 0.0
     imp_iva = venta.iva_total or 0.0
@@ -99,8 +112,7 @@ def _emitir_ante_afip(venta: Venta):
         imp_neto=round(imp_neto, 2),
         imp_iva=round(imp_iva, 2),
         imp_total=round(imp_total, 2),
-        alicuota_iva_id=list(ivas_agrupados.values())[0]['iva_id'] if ivas_agrupados else 5,
-        alicuota_iva_pct=list(ivas_agrupados.keys())[0] if ivas_agrupados else 21.0,
+        ivas=ivas if ivas else None,
     )
 
     venta.numero_comprobante = resultado['numero']
