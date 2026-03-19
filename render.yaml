@@ -9,3 +9,5 @@ services:
         generateValue: true
       - key: FLASK_DEBUG
         value: "false"
+      - key: TZ
+        value: "America/Argentina/Buenos_Aires"

@@ -50,7 +50,7 @@ class Cliente(db.Model):
     # CF=Consumidor Final, RI=Responsable Inscripto, M=Monotributista, EX=Exento
     condicion_iva = db.Column(db.String(10), default='CF')
     notas = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     talleres = db.relationship('Taller', backref='cliente', lazy=True)
     ventas = db.relationship('Venta', backref='cliente', lazy=True)
@@ -76,7 +76,7 @@ class Proveedor(db.Model):
     email = db.Column(db.String(120))
     direccion = db.Column(db.String(200))
     notas = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     ingresos = db.relationship('IngresoMercaderia', backref='proveedor', lazy=True)
 
@@ -141,13 +141,13 @@ class Taller(db.Model):
     estado = db.Column(db.String(30), default='recibido')
     costo_estimado = db.Column(db.Float, default=0.0)
     costo_reparacion = db.Column(db.Float, default=0.0)
-    fecha_ingreso = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha_ingreso = db.Column(db.DateTime, default=datetime.now)
     fecha_estimada_entrega = db.Column(db.DateTime)
     fecha_entrega = db.Column(db.DateTime)
     tecnico = db.Column(db.String(100))
     pagado = db.Column(db.Boolean, default=False)
     forma_pago = db.Column(db.String(50), default='efectivo')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     productos_usados = db.relationship('TallerProducto', backref='taller', lazy=True, cascade='all, delete-orphan')
     servicios_usados = db.relationship('TallerServicio', backref='taller', lazy=True, cascade='all, delete-orphan')
@@ -206,7 +206,7 @@ class Venta(db.Model):
     punto_venta = db.Column(db.Integer, default=1)
     numero_comprobante = db.Column(db.Integer)
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)
     subtotal = db.Column(db.Float, default=0.0)   # importe neto gravado
     iva_total = db.Column(db.Float, default=0.0)  # IVA total
     descuento = db.Column(db.Float, default=0.0)
@@ -218,7 +218,7 @@ class Venta(db.Model):
     cae = db.Column(db.String(20))
     fecha_vencimiento_cae = db.Column(db.Date)
     notas = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     items = db.relationship('VentaItem', backref='venta', lazy=True, cascade='all, delete-orphan')
 
@@ -286,20 +286,20 @@ class MovimientoCaja(db.Model):
     monto = db.Column(db.Float, nullable=False)
     referencia_tipo = db.Column(db.String(20))  # taller / venta / ajuste / otro
     referencia_id = db.Column(db.Integer)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)
     notas = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
 
 class IngresoMercaderia(db.Model):
     __tablename__ = 'ingresos_mercaderia'
     id = db.Column(db.Integer, primary_key=True)
-    fecha = db.Column(db.DateTime, default=datetime.utcnow)
+    fecha = db.Column(db.DateTime, default=datetime.now)
     proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=True)
     forma_pago = db.Column(db.String(50), default='efectivo')
     notas = db.Column(db.Text)
     total = db.Column(db.Float, default=0.0)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     items = db.relationship('IngresoMercaderiaItem', backref='ingreso', lazy=True, cascade='all, delete-orphan')
 
@@ -371,7 +371,7 @@ class Factura(db.Model):
     concepto = db.Column(db.Integer, default=1)   # 1=Productos, 2=Servicios, 3=Mixto
     forma_pago = db.Column(db.String(50), default='efectivo')
     notas = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
     items = db.relationship(
         'FacturaDetalle', backref='factura', lazy=True, cascade='all, delete-orphan'

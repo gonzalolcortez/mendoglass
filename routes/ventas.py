@@ -75,7 +75,7 @@ def _emitir_ante_afip(venta: Venta):
 
     tipo_doc, nro_doc = tipo_doc_receptor(condicion_iva, cuit)
 
-    fecha_str = (venta.fecha or datetime.utcnow()).strftime('%Y%m%d')
+    fecha_str = (venta.fecha or datetime.now()).strftime('%Y%m%d')
 
     # Aggregate IVA by rate for multi-rate support
     ivas_agrupados: dict[float, dict] = {}
@@ -206,7 +206,7 @@ def nueva():
         alicuotas=ALICUOTAS_IVA,
         categorias=categorias,
         tipos_comprobante=Venta.TIPOS_COMPROBANTE,
-        now=datetime.utcnow(),
+        now=datetime.now(),
     )
 
 
@@ -250,7 +250,7 @@ def guardar():
         cliente_id=int(cliente_id) if cliente_id else None,
         forma_pago=forma_pago,
         notas=notas,
-        fecha=datetime.utcnow(),
+        fecha=datetime.now(),
     )
     db.session.add(venta)
     db.session.flush()
@@ -326,7 +326,7 @@ def guardar():
         monto=total,
         referencia_tipo='venta',
         referencia_id=venta.id,
-        fecha=datetime.utcnow(),
+        fecha=datetime.now(),
     )
     db.session.add(mov)
     db.session.commit()

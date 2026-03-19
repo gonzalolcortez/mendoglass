@@ -200,7 +200,7 @@ def nuevo_ingreso_mercaderia():
             proveedor_id=proveedor_id,
             forma_pago=forma_pago,
             notas=notas,
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(),
         )
         db.session.add(ingreso)
         db.session.flush()
@@ -257,7 +257,7 @@ def nuevo_ingreso_mercaderia():
             monto=total,
             referencia_tipo='ingreso_mercaderia',
             referencia_id=ingreso.id,
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(),
         )
         db.session.add(mov)
         db.session.commit()

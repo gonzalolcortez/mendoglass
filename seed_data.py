@@ -93,8 +93,8 @@ def seed():
                 estado='en_reparacion',
                 costo_estimado=17000.0,
                 tecnico='Lucas',
-                fecha_ingreso=datetime.utcnow() - timedelta(days=2),
-                fecha_estimada_entrega=datetime.utcnow() + timedelta(days=1),
+                fecha_ingreso=datetime.now() - timedelta(days=2),
+                fecha_estimada_entrega=datetime.now() + timedelta(days=1),
             )
             db.session.add(t1)
             db.session.flush()
@@ -116,7 +116,7 @@ def seed():
                 estado='diagnostico',
                 costo_estimado=6000.0,
                 tecnico='Lucas',
-                fecha_ingreso=datetime.utcnow() - timedelta(days=1),
+                fecha_ingreso=datetime.now() - timedelta(days=1),
             )
             db.session.add(t2)
             db.session.flush()
@@ -135,8 +135,8 @@ def seed():
                 costo_estimado=6000.0,
                 costo_reparacion=5800.0,
                 tecnico='Marcos',
-                fecha_ingreso=datetime.utcnow() - timedelta(days=4),
-                fecha_estimada_entrega=datetime.utcnow(),
+                fecha_ingreso=datetime.now() - timedelta(days=4),
+                fecha_estimada_entrega=datetime.now(),
             )
             db.session.add(t3)
             db.session.flush()
@@ -160,8 +160,8 @@ def seed():
                 costo_reparacion=3500.0,
                 tecnico='Marcos',
                 pagado=True,
-                fecha_ingreso=datetime.utcnow() - timedelta(days=7),
-                fecha_entrega=datetime.utcnow() - timedelta(days=3),
+                fecha_ingreso=datetime.now() - timedelta(days=7),
+                fecha_entrega=datetime.now() - timedelta(days=3),
             )
             db.session.add(t4)
             db.session.flush()
@@ -178,7 +178,7 @@ def seed():
                 monto=3500.0,
                 referencia_tipo='taller',
                 referencia_id=t4.id,
-                fecha=datetime.utcnow() - timedelta(days=3),
+                fecha=datetime.now() - timedelta(days=3),
             )
             db.session.add(m4)
 
@@ -195,7 +195,7 @@ def seed():
                 mov = MovimientoCaja(
                     tipo=tipo, concepto=concepto, monto=monto,
                     referencia_tipo='otro',
-                    fecha=datetime.utcnow() - delta,
+                    fecha=datetime.now() - delta,
                 )
                 db.session.add(mov)
 

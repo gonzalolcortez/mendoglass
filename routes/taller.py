@@ -228,7 +228,7 @@ def entregar(id):
     forma_pago = request.form.get('forma_pago', 'efectivo')
     taller.estado = 'entregado'
     taller.forma_pago = forma_pago
-    taller.fecha_entrega = datetime.utcnow()
+    taller.fecha_entrega = datetime.now()
 
     if forma_pago == 'cuenta_corriente':
         taller.pagado = False
@@ -245,7 +245,7 @@ def entregar(id):
             monto=monto,
             referencia_tipo='taller',
             referencia_id=taller.id,
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(),
         )
         db.session.add(mov)
         db.session.commit()
@@ -274,7 +274,7 @@ def cobrar_deuda(id):
         monto=monto,
         referencia_tipo='taller',
         referencia_id=taller.id,
-        fecha=datetime.utcnow(),
+        fecha=datetime.now(),
     )
     db.session.add(mov)
     db.session.commit()

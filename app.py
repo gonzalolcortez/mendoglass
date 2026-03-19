@@ -1,8 +1,21 @@
 from flask import Flask, jsonify
 from extensions import db, login_manager
 import os
+import time
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import SQLAlchemyError
+
+
+def _configure_timezone(app):
+    """Configure process timezone, defaulting to Argentina (-03:00)."""
+    tz_name = os.environ.setdefault('TZ', 'America/Argentina/Buenos_Aires')
+    app.config['APP_TIMEZONE'] = tz_name
+
+    # tzset is available on Unix platforms (Render/Linux).
+    try:
+        time.tzset()
+    except AttributeError:
+        app.logger.warning('tzset is not available on this platform; TZ=%s', tz_name)
 
 
 def _ensure_ventas_columns(app):
@@ -122,6 +135,7 @@ def _ensure_venta_items_columns(app):
 
 def create_app():
     app = Flask(__name__)
+    _configure_timezone(app)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     database_url = os.environ.get('DATABASE_URL', 'sqlite:///sistema.db')

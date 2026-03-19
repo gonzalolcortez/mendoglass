@@ -10,7 +10,7 @@ contabilidad_bp = Blueprint('contabilidad', __name__)
 @contabilidad_bp.route('/')
 @login_required
 def index():
-    anio = request.args.get('anio', datetime.utcnow().year, type=int)
+    anio = request.args.get('anio', datetime.now().year, type=int)
 
     # Ingresos y egresos por mes del año seleccionado
     meses_data = []
@@ -43,9 +43,9 @@ def index():
     anios = db.session.query(
         extract('year', MovimientoCaja.fecha).label('anio')
     ).distinct().order_by('anio').all()
-    anios = [int(a.anio) for a in anios] or [datetime.utcnow().year]
-    if datetime.utcnow().year not in anios:
-        anios.append(datetime.utcnow().year)
+    anios = [int(a.anio) for a in anios] or [datetime.now().year]
+    if datetime.now().year not in anios:
+        anios.append(datetime.now().year)
     anios.sort(reverse=True)
 
     # Saldo acumulado por cuenta (todos los movimientos)
