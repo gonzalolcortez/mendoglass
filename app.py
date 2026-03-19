@@ -1,6 +1,54 @@
 from flask import Flask, jsonify
 from extensions import db, login_manager
 import os
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
+
+
+def _ensure_ventas_columns(app):
+    """Ensure legacy DBs have the columns required by the current Venta model."""
+    dialect = db.engine.dialect.name
+    bool_true = 'TRUE' if dialect == 'postgresql' else '1'
+
+    required_columns = {
+        'tipo_comprobante': "VARCHAR(20) NOT NULL DEFAULT 'NOTA_VENTA'",
+        'punto_venta': 'INTEGER NOT NULL DEFAULT 1',
+        'numero_comprobante': 'INTEGER',
+        'subtotal': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'iva_total': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'descuento': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'total': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'pagado': f'BOOLEAN NOT NULL DEFAULT {bool_true}',
+        'forma_pago': "VARCHAR(50) DEFAULT 'efectivo'",
+        'tipo_cbte_afip': 'INTEGER',
+        'cae': 'VARCHAR(20)',
+        'fecha_vencimiento_cae': 'DATE',
+        'notas': 'TEXT',
+        'created_at': 'TIMESTAMP',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('ventas'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('ventas')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE ventas ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing ventas columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
 
 def create_app():
     app = Flask(__name__)
@@ -44,13 +92,17 @@ def create_app():
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
 
+    with app.app_context():
+        db.create_all()
+        _seed_default_user()
+        try:
+            _ensure_ventas_columns(app)
+        except SQLAlchemyError as e:
+            app.logger.error('Could not apply runtime schema patch for ventas: %s', e)
+
     @app.route('/health')
     def health():
         return jsonify({"status": "ok"}), 200
-
-    # 🔥 IMPORTANTE: NO inicializar DB al arrancar en Render
-    # with app.app_context():
-    #     _init_db_with_retry(app)
 
     return app
 
@@ -71,7 +123,6 @@ def _init_db_with_retry(app, retries=5, delay=3):
                 raise
             app.logger.warning(f"Database not ready (attempt {attempt}/{retries}): {e}. Retrying in {delay}s...")
             time.sleep(delay)
-
 
 def _seed_default_user():
     from models import Usuario
