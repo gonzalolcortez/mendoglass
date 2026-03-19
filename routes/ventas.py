@@ -27,16 +27,21 @@ _AFIP_IVA_ID = {0.0: 4, 10.5: 8, 21.0: 5, 27.0: 6}
 # Helpers
 # ─────────────────────────────────────────────
 
-def _siguiente_numero(tipo_comprobante: str, punto_venta: int) -> int:
-    """Returns the next sequential comprobante number for NOTA_VENTA."""
+def _siguiente_numero(tipo_comprobante: str, punto_venta: int | None = None) -> int:
+    """Returns the next sequential comprobante number."""
+    query = Venta.query.filter_by(tipo_comprobante=tipo_comprobante)
+    if tipo_comprobante != 'NOTA_VENTA':
+        query = query.filter_by(punto_venta=punto_venta)
+
     ultimo = (
-        Venta.query
-        .filter_by(tipo_comprobante=tipo_comprobante, punto_venta=punto_venta)
+        query
         .filter(Venta.numero_comprobante.isnot(None))
         .order_by(Venta.numero_comprobante.desc())
         .first()
     )
-    return (ultimo.numero_comprobante + 1) if ultimo else 1
+    if ultimo:
+        return ultimo.numero_comprobante + 1
+    return 0 if tipo_comprobante == 'NOTA_VENTA' else 1
 
 
 def _tipo_cbte_afip(condicion_iva: str) -> int:
@@ -209,7 +214,8 @@ def nueva():
 @login_required
 def guardar():
     tipo_comprobante = request.form.get('tipo_comprobante', 'NOTA_VENTA')
-    punto_venta = int(request.form.get('punto_venta', 1) or 1)
+    es_factura = tipo_comprobante == 'FACTURA'
+    punto_venta = int(request.form.get('punto_venta', 1) or 1) if es_factura else None
     cliente_id = request.form.get('cliente_id') or None
     forma_pago = request.form.get('forma_pago', 'efectivo')
     notas = request.form.get('notas', '').strip()
@@ -256,13 +262,18 @@ def guardar():
         cant = it['cantidad']
         precio = it['precio']
         bonif = it['bonificacion']
-        alicuota = it['alicuota']
+        alicuota = it['alicuota'] if es_factura else 0.0
         pid = it['producto_id']
 
         precio_bonif = precio * (1 - bonif / 100) if bonif else precio
-        sub_neto = round(precio_bonif * cant, 2)
-        iva_monto = round(sub_neto * alicuota / 100, 2)
-        sub_total = round(sub_neto + iva_monto, 2)
+        if es_factura:
+            sub_neto = round(precio_bonif * cant, 2)
+            iva_monto = round(sub_neto * alicuota / 100, 2)
+            sub_total = round(sub_neto + iva_monto, 2)
+        else:
+            sub_total = round(precio_bonif * cant, 2)
+            sub_neto = sub_total
+            iva_monto = 0.0
 
         vi = VentaItem(
             venta_id=venta.id,
@@ -297,7 +308,7 @@ def guardar():
 
     # Assign comprobante number for NOTA_VENTA now; FACTURA gets it from AFIP
     if tipo_comprobante == 'NOTA_VENTA':
-        venta.numero_comprobante = _siguiente_numero('NOTA_VENTA', punto_venta)
+        venta.numero_comprobante = _siguiente_numero('NOTA_VENTA')
 
     # Cash movement
     cliente_label = ''

@@ -229,9 +229,13 @@ class Venta(db.Model):
 
     @property
     def numero_display(self):
-        pv = self.punto_venta or 1
         nro = self.numero_comprobante
-        if nro:
+        if nro is None:
+            return f'#{self.id}'
+        if self.tipo_comprobante == 'NOTA_VENTA':
+            return f'{nro:04d}'
+        pv = self.punto_venta or 1
+        if nro is not None:
             return f'{pv:04d}-{nro:08d}'
         return f'#{self.id}'
 
