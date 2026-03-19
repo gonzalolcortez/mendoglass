@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% block title %}Venta {{ venta.numero_display }}{% endblock %}
+{% block page_title %}Detalle de Venta{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('ventas.index') }}" class="btn btn-outline-secondary btn-sm">
+  <i class="bi bi-arrow-left me-1"></i>Volver
+</a>
+{% if venta.tipo_comprobante == 'FACTURA' and not venta.cae %}
+<form method="post" action="{{ url_for('ventas.emitir', id=venta.id) }}" class="d-inline">
+  <button class="btn btn-warning btn-sm">
+    <i class="bi bi-send me-1"></i>Reintentar emisión ARCA
+  </button>
+</form>
+{% endif %}
+<form method="post" action="{{ url_for('ventas.eliminar', id=venta.id) }}" class="d-inline"
+      onsubmit="return confirm('¿Eliminar esta venta? El stock será devuelto.')">
+  <button class="btn btn-outline-danger btn-sm"><i class="bi bi-trash me-1"></i>Eliminar</button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Left: comprobante detail -->
+  <div class="col-lg-8">
+    <div class="form-card">
+
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <div>
+          {% if venta.tipo_comprobante == 'FACTURA' %}
+          <span class="badge bg-primary fs-6 mb-1">Factura Electrónica</span>
+          {% else %}
+          <span class="badge bg-secondary fs-6 mb-1">Nota de Venta</span>
+          {% endif %}
+          <div class="font-monospace fw-bold fs-5">{{ venta.numero_display }}</div>
+          <div class="text-muted small">Fecha: {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}</div>
+        </div>
+        <div class="text-end">
+          {% if venta.cae %}
+          <div class="text-success small"><i class="bi bi-check-circle me-1"></i>Emitida ante ARCA</div>
+          <div class="font-monospace small"><strong>CAE:</strong> {{ venta.cae }}</div>
+          {% if venta.fecha_vencimiento_cae %}
+          <div class="text-muted small">Vto. CAE: {{ venta.fecha_vencimiento_cae.strftime('%d/%m/%Y') }}</div>
+          {% endif %}
+          {% elif venta.tipo_comprobante == 'FACTURA' %}
+          <span class="badge bg-warning text-dark">Sin CAE – pendiente de emisión</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Client info -->
+      <div class="row g-2 mb-3 p-3 bg-light rounded">
+        <div class="col-sm-6">
+          <div class="fw-semibold">Cliente</div>
+          <div>{{ venta.cliente.nombre_completo if venta.cliente else '— Mostrador (sin cliente)' }}</div>
+          {% if venta.cliente and venta.cliente.cuit %}
+          <div class="text-muted small">CUIT: {{ venta.cliente.cuit }}</div>
+          {% endif %}
+          {% if venta.cliente and venta.cliente.direccion %}
+          <div class="text-muted small">{{ venta.cliente.direccion }}</div>
+          {% endif %}
+        </div>
+        <div class="col-sm-3">
+          <div class="fw-semibold">Condición IVA</div>
+          <div>{{ venta.cliente.condicion_iva if venta.cliente else 'CF' }}</div>
+        </div>
+        <div class="col-sm-3">
+          <div class="fw-semibold">Condición de Venta</div>
+          <div>{{ venta.forma_pago | title }}</div>
+        </div>
+      </div>
+
+      <!-- Items table -->
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <thead class="table-light">
+            <tr>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th class="text-center">Cant.</th>
+              <th>Unidad</th>
+              <th class="text-end">P.Unit.</th>
+              <th class="text-center">Bonif.%</th>
+              <th class="text-end">Subtotal Neto</th>
+              <th class="text-center">IVA %</th>
+              <th class="text-end">Subtotal c/IVA</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for item in venta.items %}
+          <tr>
+            <td class="small text-muted">{{ item.codigo or '—' }}</td>
+            <td>{{ item.descripcion }}</td>
+            <td class="text-center">{{ item.cantidad | int if item.cantidad == item.cantidad | int else "%.2f"|format(item.cantidad) }}</td>
+            <td class="small">{{ item.unidad or 'unidad' }}</td>
+            <td class="text-end">${{ "%.2f"|format(item.precio_unitario) }}</td>
+            <td class="text-center">{% if item.bonificacion %}{{ item.bonificacion }}%{% else %}—{% endif %}</td>
+            <td class="text-end">${{ "%.2f"|format(item.subtotal_neto or 0) }}</td>
+            <td class="text-center">
+              <span class="badge bg-light text-dark">{{ item.alicuota_iva or 0 }}%</span>
+            </td>
+            <td class="text-end fw-semibold">${{ "%.2f"|format(item.subtotal) }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if venta.notas %}
+      <div class="text-muted small mt-2"><strong>Observaciones:</strong> {{ venta.notas }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Right: totals -->
+  <div class="col-lg-4">
+    <div class="form-card">
+      <div class="section-title">Resumen de Impuestos</div>
+
+      {% for alicuota, datos in iva_breakdown.items() | sort %}
+      <div class="d-flex justify-content-between small text-muted mb-1">
+        <span>Neto gravado {{ alicuota }}%:</span>
+        <span>${{ "%.2f"|format(datos.neto) }}</span>
+      </div>
+      <div class="d-flex justify-content-between small mb-2 ms-2">
+        <span class="text-primary">IVA {{ alicuota }}%:</span>
+        <span class="text-primary">${{ "%.2f"|format(datos.iva) }}</span>
+      </div>
+      {% endfor %}
+
+      <hr>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Importe neto gravado:</span>
+        <span class="fw-semibold">${{ "%.2f"|format(venta.subtotal) }}</span>
+      </div>
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">IVA total:</span>
+        <span class="text-primary fw-semibold">${{ "%.2f"|format(venta.iva_total or 0) }}</span>
+      </div>
+      <hr>
+      <div class="d-flex justify-content-between mb-3">
+        <span class="fw-bold fs-5">TOTAL:</span>
+        <span class="fw-bold fs-5 text-success">${{ "%.2f"|format(venta.total) }}</span>
+      </div>
+
+      <div class="small text-muted">
+        <i class="bi bi-credit-card me-1"></i>
+        Forma de pago: <strong>{{ venta.forma_pago | title }}</strong>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

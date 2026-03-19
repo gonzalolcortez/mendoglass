@@ -1,37 +1,61 @@
 {% extends 'base.html' %}
 {% block title %}Nueva Venta{% endblock %}
-{% block page_title %}Nueva Venta{% endblock %}
+{% block page_title %}Nueva Venta / Comprobante{% endblock %}
 
 {% block extra_head %}
 <style>
-  #items-table tbody tr td { vertical-align: middle; }
-  .item-row { transition: background .15s; }
+  .items-table th, .items-table td { vertical-align: middle; }
+  .items-table input { min-width: 60px; }
+  .iva-badge { font-size: .7rem; }
+  #resumen-iva td { font-size: .88rem; }
+  .tipo-btn { cursor: pointer; }
+  .tipo-card { border: 2px solid #dee2e6; border-radius: 10px; padding: 1rem; text-align: center; transition: border-color .2s, background .2s; }
+  .tipo-card.selected { border-color: #0d6efd; background: #e8f0fe; }
+  .tipo-card .bi { font-size: 1.8rem; display: block; margin-bottom: .4rem; }
 </style>
 {% endblock %}
 
 {% block content %}
-<form method="post" id="venta-form">
+<form method="post" action="{{ url_for('ventas.guardar') }}" id="venta-form">
+
+  <!-- ── Tipo de Comprobante ── -->
+  <div class="form-card mb-3">
+    <div class="section-title">Tipo de Comprobante</div>
+    <div class="row g-3">
+      {% for val, label in tipos_comprobante %}
+      <div class="col-sm-6 col-md-3">
+        <label class="tipo-btn d-block">
+          <input type="radio" name="tipo_comprobante" value="{{ val }}"
+                 class="d-none" {% if loop.first %}checked{% endif %}
+                 onchange="onTipoChange()">
+          <div class="tipo-card {% if loop.first %}selected{% endif %}">
+            <i class="bi {% if val == 'FACTURA' %}bi-receipt-cutoff{% else %}bi-file-text{% endif %}"></i>
+            {{ label }}
+          </div>
+        </label>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="row g-3">
-    <!-- Columna izquierda: datos + items -->
+    <!-- ── Left column ── -->
     <div class="col-lg-8">
+
+      <!-- Datos del comprobante -->
       <div class="form-card mb-3">
-        <div class="section-title">Datos de la venta</div>
+        <div class="section-title">Datos del Comprobante</div>
         <div class="row g-3">
-          <div class="col-sm-8">
-            <label class="form-label fw-semibold">Cliente (opcional)</label>
-            <select name="cliente_id" class="form-select">
-              <option value="">— Mostrador (sin cliente) —</option>
-              {% for c in clientes %}
-              <option value="{{ c.id }}">{{ c.nombre_completo }}</option>
-              {% endfor %}
-            </select>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold">Punto de Venta</label>
+            <input type="number" name="punto_venta" class="form-control" value="1" min="1" max="9999">
           </div>
-          <div class="col-sm-4">
-            <label class="form-label fw-semibold">Descuento ($)</label>
-            <input type="number" name="descuento" id="descuento" class="form-control" step="0.01" min="0" value="0"
-                   oninput="calcTotal()">
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold">Fecha</label>
+            <input type="date" name="fecha_emision" class="form-control"
+                   value="{{ now.strftime('%Y-%m-%d') if now else '' }}">
           </div>
-          <div class="col-sm-8">
+          <div class="col-sm-6">
             <label class="form-label fw-semibold">Forma de Pago *</label>
             <select name="forma_pago" class="form-select" required>
               {% for val, label in formas_pago %}
@@ -39,29 +63,63 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-sm-4">
-            <label class="form-label fw-semibold">Notas</label>
-            <input type="text" name="notas" class="form-control" placeholder="Opcional…">
+        </div>
+      </div>
+
+      <!-- Cliente -->
+      <div class="form-card mb-3">
+        <div class="section-title">Cliente</div>
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Cliente</label>
+            <select name="cliente_id" id="sel-cliente" class="form-select" onchange="onClienteChange()">
+              <option value="">— Mostrador (sin cliente) —</option>
+              {% for c in clientes %}
+              <option value="{{ c.id }}"
+                      data-cuit="{{ c.cuit or '' }}"
+                      data-dir="{{ c.direccion or '' }}"
+                      data-iva="{{ c.condicion_iva or 'CF' }}">
+                {{ c.nombre_completo }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold">CUIT</label>
+            <input type="text" name="cliente_cuit" id="inp-cuit" class="form-control" placeholder="20-12345678-9">
+          </div>
+          <div class="col-sm-3">
+            <label class="form-label fw-semibold">Condición IVA</label>
+            <select name="cliente_condicion_iva" id="sel-cond-iva" class="form-select">
+              <option value="CF">Consumidor Final</option>
+              <option value="RI">Responsable Inscripto</option>
+              <option value="M">Monotributista</option>
+              <option value="EX">Exento</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Domicilio</label>
+            <input type="text" name="cliente_domicilio" id="inp-domicilio" class="form-control" placeholder="Dirección del cliente">
           </div>
         </div>
       </div>
 
-      <!-- Items -->
+      <!-- Detalle de productos -->
       <div class="form-card">
-        <div class="section-title">Productos y Servicios</div>
+        <div class="section-title">Detalle de Productos / Servicios</div>
 
-        <!-- Selector rápido -->
+        <!-- Quick add row -->
         <div class="row g-2 mb-2 align-items-end">
-          <div class="col-sm-3">
+          <div class="col-sm-2">
             <label class="form-label small fw-semibold">Tipo</label>
-            <select id="sel-tipo" class="form-select form-select-sm">
+            <select id="sel-tipo" class="form-select form-select-sm" onchange="toggleControls(); poblarItems();">
               <option value="producto">Producto</option>
               <option value="servicio">Servicio</option>
             </select>
           </div>
-          <div class="col-sm-3" id="col-categoria">
+          <div class="col-sm-2" id="col-categoria">
             <label class="form-label small fw-semibold">Categoría</label>
-            <select id="sel-categoria" class="form-select form-select-sm">
+            <select id="sel-categoria" class="form-select form-select-sm" onchange="poblarItems()">
               <option value="">Todas</option>
               {% for cat in categorias %}
               <option value="{{ cat.id }}">{{ cat.nombre }}</option>
@@ -69,64 +127,111 @@
             </select>
           </div>
           <div class="col-sm-4">
-            <label class="form-label small fw-semibold">Item</label>
-            <select id="sel-item" class="form-select form-select-sm">
-              <option value="">Seleccionar…</option>
-            </select>
+            <label class="form-label small fw-semibold">Artículo</label>
+            <select id="sel-item" class="form-select form-select-sm"></select>
           </div>
           <div class="col-sm-1">
             <label class="form-label small fw-semibold">Cant.</label>
-            <input type="number" id="sel-cant" class="form-control form-control-sm" value="1" min="1">
+            <input type="number" id="sel-cant" class="form-control form-control-sm" value="1" min="1" step="0.01">
+          </div>
+          <div class="col-sm-2">
+            <label class="form-label small fw-semibold">IVA %</label>
+            <select id="sel-alicuota" class="form-select form-select-sm">
+              {% for tasa, label in alicuotas %}
+              <option value="{{ tasa }}" {% if tasa == 21.0 %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
           </div>
           <div class="col-sm-1">
             <button type="button" class="btn btn-sm btn-primary w-100" onclick="agregarItem()">
-              <i class="bi bi-plus"></i>
+              <i class="bi bi-plus-lg"></i>
             </button>
           </div>
         </div>
-        <!-- Búsqueda por código de barras -->
-        <div class="row g-2 mb-3 align-items-end" id="row-barcode">
-          <div class="col-sm-6">
-            <label class="form-label small fw-semibold">Código de Barras</label>
+
+        <!-- Barcode search -->
+        <div class="row g-2 mb-3" id="row-barcode">
+          <div class="col-sm-5">
             <div class="input-group input-group-sm">
               <span class="input-group-text"><i class="bi bi-upc-scan"></i></span>
-              <input type="text" id="input-barcode" class="form-control" placeholder="Escanear o escribir código…" autocomplete="off">
+              <input type="text" id="inp-barcode" class="form-control" placeholder="Código de barras…" autocomplete="off">
             </div>
           </div>
         </div>
 
+        <!-- Items table -->
         <div class="table-responsive">
-          <table class="table table-sm" id="items-table">
-            <thead><tr><th>Descripción</th><th class="text-center">Cant.</th><th class="text-end">P.Unit.</th><th class="text-end">Subtotal</th><th></th></tr></thead>
+          <table class="table table-sm items-table" id="items-table">
+            <thead class="table-light">
+              <tr>
+                <th style="width:60px">Código</th>
+                <th>Descripción</th>
+                <th style="width:60px" class="text-center">Cant.</th>
+                <th style="width:60px">Unidad</th>
+                <th style="width:90px" class="text-end">P.Unit. Neto</th>
+                <th style="width:65px" class="text-center">Bonif.%</th>
+                <th style="width:90px" class="text-end">Subtotal Neto</th>
+                <th style="width:70px" class="text-center">IVA %</th>
+                <th style="width:90px" class="text-end">Subtotal c/IVA</th>
+                <th style="width:30px"></th>
+              </tr>
+            </thead>
             <tbody id="items-body">
-              <tr id="empty-row"><td colspan="5" class="text-center text-muted py-3 small">Agregue productos o servicios…</td></tr>
+              <tr id="empty-row">
+                <td colspan="10" class="text-center text-muted py-3">
+                  Agregue productos o servicios…
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Columna derecha: resumen -->
+    <!-- ── Right column: summary ── -->
     <div class="col-lg-4">
       <div class="form-card sticky-top" style="top:80px">
         <div class="section-title">Resumen</div>
-        <div class="d-flex justify-content-between mb-2">
-          <span class="text-muted">Subtotal:</span>
-          <span id="res-subtotal" class="fw-semibold">$0.00</span>
-        </div>
-        <div class="d-flex justify-content-between mb-2">
-          <span class="text-muted">Descuento:</span>
-          <span id="res-descuento" class="text-danger">-$0.00</span>
-        </div>
-        <hr>
+
+        <!-- IVA breakdown -->
+        <table class="table table-sm mb-0" id="resumen-iva">
+          <tbody id="iva-rows">
+            <!-- populated by JS -->
+          </tbody>
+          <tfoot>
+            <tr class="table-light">
+              <td class="fw-semibold">Neto gravado:</td>
+              <td class="text-end fw-semibold" id="res-neto">$0.00</td>
+            </tr>
+            <tr>
+              <td class="text-muted">IVA total:</td>
+              <td class="text-end text-muted" id="res-iva">$0.00</td>
+            </tr>
+          </tfoot>
+        </table>
+        <hr class="my-2">
         <div class="d-flex justify-content-between mb-3">
-          <span class="fw-bold">TOTAL:</span>
+          <span class="fw-bold fs-5">TOTAL:</span>
           <span id="res-total" class="fw-bold fs-5 text-success">$0.00</span>
         </div>
+
+        <div class="mb-2">
+          <label class="form-label fw-semibold small">Notas / Observaciones</label>
+          <textarea name="notas" class="form-control form-control-sm" rows="2" placeholder="Opcional…"></textarea>
+        </div>
+
         <button type="submit" class="btn btn-success w-100" id="btn-confirmar" disabled>
-          <i class="bi bi-check-circle me-1"></i>Confirmar Venta
+          <i class="bi bi-check-circle me-1"></i>Confirmar y Guardar
         </button>
-        <a href="{{ url_for('ventas.index') }}" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
+        <a href="{{ url_for('ventas.index') }}" class="btn btn-outline-secondary w-100 mt-2">
+          Cancelar
+        </a>
+
+        <div id="factura-warning" class="alert alert-info mt-3 d-none small">
+          <i class="bi bi-info-circle me-1"></i>
+          La factura se emitirá ante ARCA al confirmar. Asegúrese de tener configurados
+          los certificados digitales.
+        </div>
       </div>
     </div>
   </div>
@@ -138,136 +243,229 @@
 const productos = {{ productos | tojson }};
 const servicios = {{ servicios | tojson }};
 
-const productoMap = {};
-productos.forEach(p => productoMap[p.id] = p);
-const servicioMap = {};
-servicios.forEach(s => servicioMap[s.id] = s);
+// ── Update tipo-card selection ──
+document.querySelectorAll('input[name="tipo_comprobante"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.querySelectorAll('.tipo-card').forEach(c => c.classList.remove('selected'));
+    radio.closest('.tipo-btn').querySelector('.tipo-card').classList.add('selected');
+    onTipoChange();
+  });
+});
 
+function onTipoChange() {
+  const tipo = document.querySelector('input[name="tipo_comprobante"]:checked').value;
+  const warn = document.getElementById('factura-warning');
+  warn.classList.toggle('d-none', tipo !== 'FACTURA');
+}
+
+// ── Cliente autofill ──
+function onClienteChange() {
+  const sel = document.getElementById('sel-cliente');
+  const opt = sel.options[sel.selectedIndex];
+  document.getElementById('inp-cuit').value = opt.dataset.cuit || '';
+  document.getElementById('inp-domicilio').value = opt.dataset.dir || '';
+  const condSel = document.getElementById('sel-cond-iva');
+  const iva = opt.dataset.iva || 'CF';
+  for (let o of condSel.options) { o.selected = o.value === iva; }
+}
+
+// ── Product/Service selector ──
 const selTipo = document.getElementById('sel-tipo');
 const selItem = document.getElementById('sel-item');
 const selCategoria = document.getElementById('sel-categoria');
-const colCategoria = document.getElementById('col-categoria');
-const rowBarcode = document.getElementById('row-barcode');
 
 function poblarItems() {
   selItem.innerHTML = '<option value="">Seleccionar…</option>';
   const tipo = selTipo.value;
-  const categoriaId = selCategoria.value;
+  const catId = selCategoria.value;
   let lista = tipo === 'producto' ? productos : servicios;
-  if (tipo === 'producto' && categoriaId) {
-    lista = lista.filter(p => String(p.categoria_id ?? '') === categoriaId);
+  if (tipo === 'producto' && catId) {
+    lista = lista.filter(p => String(p.categoria_id ?? '') === catId);
   }
   lista.forEach(obj => {
+    const precio = tipo === 'producto' ? obj.precio_venta : obj.precio;
     const opt = document.createElement('option');
     opt.value = obj.id;
-    opt.dataset.precio = tipo === 'producto' ? obj.precio_venta : obj.precio;
-    opt.textContent = `${obj.nombre} — $${(tipo === 'producto' ? obj.precio_venta : obj.precio).toFixed(2)}${tipo === 'producto' ? ' (stock: '+obj.stock_actual+')' : ''}`;
+    opt.dataset.precio = precio;
+    opt.dataset.codigo = obj.codigo_barras || '';
+    opt.dataset.unidad = obj.unidad || 'unidad';
+    opt.dataset.nombre = obj.nombre;
+    opt.textContent = `${obj.nombre} — $${precio.toFixed(2)}` +
+      (tipo === 'producto' ? ` (stock: ${obj.stock_actual})` : '');
     selItem.appendChild(opt);
   });
 }
 
-function toggleProductoControls() {
-  const esProducto = selTipo.value === 'producto';
-  colCategoria.style.display = esProducto ? '' : 'none';
-  rowBarcode.style.display = esProducto ? '' : 'none';
+function toggleControls() {
+  const esProd = selTipo.value === 'producto';
+  document.getElementById('col-categoria').style.display = esProd ? '' : 'none';
+  document.getElementById('row-barcode').style.display = esProd ? '' : 'none';
 }
 
-selTipo.addEventListener('change', () => { toggleProductoControls(); poblarItems(); });
-selCategoria.addEventListener('change', poblarItems);
 poblarItems();
+toggleControls();
 
-// Barcode search: press Enter or lose focus
-document.getElementById('input-barcode').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); buscarPorBarcode(); }
+// ── Barcode ──
+document.getElementById('inp-barcode').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); buscarBarcode(); }
 });
 
-function buscarPorBarcode() {
-  const barcode = document.getElementById('input-barcode').value.trim();
+function buscarBarcode() {
+  const barcode = document.getElementById('inp-barcode').value.trim();
   if (!barcode) return;
-  const producto = productos.find(p => p.codigo_barras === barcode);
-  const inputEl = document.getElementById('input-barcode');
-  if (producto) {
+  const p = productos.find(x => x.codigo_barras === barcode);
+  const inp = document.getElementById('inp-barcode');
+  if (p) {
     selTipo.value = 'producto';
     selCategoria.value = '';
-    toggleProductoControls();
-    poblarItems();
-    selItem.value = producto.id;
+    toggleControls(); poblarItems();
+    selItem.value = p.id;
     agregarItem();
-    inputEl.value = '';
-    inputEl.focus();
+    inp.value = ''; inp.focus();
   } else {
-    inputEl.classList.add('is-invalid');
-    setTimeout(() => inputEl.classList.remove('is-invalid'), 1500);
+    inp.classList.add('is-invalid');
+    setTimeout(() => inp.classList.remove('is-invalid'), 1500);
   }
 }
 
-let itemCount = 0;
+// ── Add item row ──
+let rowCount = 0;
 
 function agregarItem() {
   const tipo = selTipo.value;
   const id = selItem.value;
-  const cant = parseInt(document.getElementById('sel-cant').value) || 1;
   if (!id) {
     selItem.classList.add('is-invalid');
     setTimeout(() => selItem.classList.remove('is-invalid'), 1500);
     return;
   }
-
   const opt = selItem.options[selItem.selectedIndex];
-  const precio = parseFloat(opt.dataset.precio);
-  const nombre = opt.textContent.split(' — ')[0];
-  const subtotal = precio * cant;
+  const precio = parseFloat(opt.dataset.precio) || 0;
+  const codigo = opt.dataset.codigo || '';
+  const unidad = opt.dataset.unidad || 'unidad';
+  const nombre = opt.dataset.nombre || opt.textContent.split(' — ')[0];
+  const cant = parseFloat(document.getElementById('sel-cant').value) || 1;
+  const alicuota = parseFloat(document.getElementById('sel-alicuota').value) || 21;
 
-  const emptyRow = document.getElementById('empty-row');
-  if (emptyRow) emptyRow.remove();
-
+  document.getElementById('empty-row')?.remove();
   const tbody = document.getElementById('items-body');
+  const rowId = ++rowCount;
+
   const tr = document.createElement('tr');
-  tr.className = 'item-row';
+  tr.id = 'row-' + rowId;
   tr.innerHTML = `
-    <td>${nombre}
-      <input type="hidden" name="item_tipo[]" value="${tipo}">
-      <input type="hidden" name="item_id[]" value="${id}">
+    <td>
+      <input type="hidden" name="item_producto_id[]" value="${tipo === 'producto' ? id : ''}">
+      <input type="text" name="item_codigo[]" class="form-control form-control-sm" value="${codigo}" style="width:70px">
+    </td>
+    <td>
+      <input type="text" name="item_descripcion[]" class="form-control form-control-sm" value="${nombre}" style="min-width:140px">
     </td>
     <td class="text-center">
-      <input type="hidden" name="item_cantidad[]" value="${cant}">${cant}
+      <input type="number" name="item_cantidad[]" class="form-control form-control-sm text-center row-field"
+             value="${cant}" min="0.01" step="0.01" style="width:65px" data-row="${rowId}" onchange="calcRow(${rowId})">
     </td>
-    <td class="text-end">$${precio.toFixed(2)}</td>
-    <td class="text-end fw-semibold" data-sub="${subtotal}">$${subtotal.toFixed(2)}</td>
+    <td>
+      <input type="text" name="item_unidad[]" class="form-control form-control-sm" value="${unidad}" style="width:65px">
+    </td>
     <td class="text-end">
-      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="quitarItem(this)">
+      <input type="number" name="item_precio[]" class="form-control form-control-sm text-end row-field"
+             value="${precio.toFixed(2)}" min="0" step="0.01" style="width:90px" data-row="${rowId}" onchange="calcRow(${rowId})">
+    </td>
+    <td class="text-center">
+      <input type="number" name="item_bonificacion[]" class="form-control form-control-sm text-center row-field"
+             value="0" min="0" max="100" step="0.01" style="width:65px" data-row="${rowId}" onchange="calcRow(${rowId})">
+    </td>
+    <td class="text-end" id="sub-neto-${rowId}">$${(precio*cant).toFixed(2)}</td>
+    <td class="text-center">
+      <select name="item_alicuota[]" class="form-select form-select-sm" style="width:75px" data-row="${rowId}" onchange="calcRow(${rowId})">
+        {% for tasa, lbl in alicuotas %}
+        <option value="{{ tasa }}" ${alicuota === {{ tasa }} ? 'selected' : ''}>{{ lbl }}</option>
+        {% endfor %}
+      </select>
+    </td>
+    <td class="text-end fw-semibold" id="sub-total-${rowId}">$${(precio*cant*(1+alicuota/100)).toFixed(2)}</td>
+    <td>
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="quitarItem(${rowId})">
         <i class="bi bi-x"></i>
       </button>
     </td>`;
   tbody.appendChild(tr);
-  itemCount++;
   calcTotal();
 }
 
-function quitarItem(btn) {
-  btn.closest('tr').remove();
-  itemCount--;
-  if (document.getElementById('items-body').children.length === 0) {
-    const tbody = document.getElementById('items-body');
-    tbody.innerHTML = '<tr id="empty-row"><td colspan="5" class="text-center text-muted py-3 small">Agregue productos o servicios…</td></tr>';
+function calcRow(rowId) {
+  const tr = document.getElementById('row-' + rowId);
+  if (!tr) return;
+  const cant = parseFloat(tr.querySelector('[name="item_cantidad[]"]').value) || 0;
+  const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
+  const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
+  const alicuota = parseFloat(tr.querySelector('[name="item_alicuota[]"]').value) || 0;
+
+  const precioBonif = precio * (1 - bonif / 100);
+  const subNeto = precioBonif * cant;
+  const subTotal = subNeto * (1 + alicuota / 100);
+
+  document.getElementById('sub-neto-' + rowId).textContent = '$' + subNeto.toFixed(2);
+  document.getElementById('sub-total-' + rowId).textContent = '$' + subTotal.toFixed(2);
+  calcTotal();
+}
+
+function quitarItem(rowId) {
+  document.getElementById('row-' + rowId)?.remove();
+  if (!document.getElementById('items-body').querySelector('tr:not(#empty-row)')) {
+    document.getElementById('items-body').innerHTML =
+      '<tr id="empty-row"><td colspan="10" class="text-center text-muted py-3">Agregue productos o servicios…</td></tr>';
   }
   calcTotal();
 }
 
 function calcTotal() {
-  let subtotal = 0;
-  document.querySelectorAll('#items-body td[data-sub]').forEach(td => {
-    subtotal += parseFloat(td.dataset.sub);
+  // Gather per-row data
+  const rows = document.querySelectorAll('#items-body tr[id^="row-"]');
+  const ivaMap = {};
+  let totalNeto = 0, totalIva = 0;
+
+  rows.forEach(tr => {
+    const rowId = tr.id.replace('row-', '');
+    const cant = parseFloat(tr.querySelector('[name="item_cantidad[]"]').value) || 0;
+    const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
+    const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
+    const alicuota = parseFloat(tr.querySelector('[name="item_alicuota[]"]').value) || 0;
+    const precioBonif = precio * (1 - bonif / 100);
+    const subNeto = precioBonif * cant;
+    const ivaMonto = subNeto * alicuota / 100;
+
+    totalNeto += subNeto;
+    totalIva += ivaMonto;
+
+    if (!ivaMap[alicuota]) ivaMap[alicuota] = { neto: 0, iva: 0 };
+    ivaMap[alicuota].neto += subNeto;
+    ivaMap[alicuota].iva += ivaMonto;
   });
-  const descuento = parseFloat(document.getElementById('descuento').value) || 0;
-  const total = subtotal - descuento;
 
-  document.getElementById('res-subtotal').textContent = `$${subtotal.toFixed(2)}`;
-  document.getElementById('res-descuento').textContent = `-$${descuento.toFixed(2)}`;
-  document.getElementById('res-total').textContent = `$${total.toFixed(2)}`;
+  // Update IVA breakdown
+  const ivaRows = document.getElementById('iva-rows');
+  ivaRows.innerHTML = '';
+  Object.entries(ivaMap).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])).forEach(([alicuota, data]) => {
+    if (data.neto > 0 || data.iva > 0) {
+      ivaRows.innerHTML += `
+        <tr>
+          <td class="text-muted small">Neto ${alicuota}%:</td>
+          <td class="text-end small">$${data.neto.toFixed(2)}</td>
+        </tr>
+        <tr>
+          <td class="text-muted small ps-3">IVA ${alicuota}%:</td>
+          <td class="text-end small text-primary">$${data.iva.toFixed(2)}</td>
+        </tr>`;
+    }
+  });
 
-  const btn = document.getElementById('btn-confirmar');
-  btn.disabled = itemCount === 0;
+  document.getElementById('res-neto').textContent = '$' + totalNeto.toFixed(2);
+  document.getElementById('res-iva').textContent = '$' + totalIva.toFixed(2);
+  document.getElementById('res-total').textContent = '$' + (totalNeto + totalIva).toFixed(2);
+
+  document.getElementById('btn-confirmar').disabled = rows.length === 0;
 }
 </script>
 {% endblock %}
