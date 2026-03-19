@@ -46,11 +46,21 @@ class Cliente(db.Model):
     telefono = db.Column(db.String(30))
     email = db.Column(db.String(120))
     direccion = db.Column(db.String(200))
+    cuit = db.Column(db.String(20))
+    # CF=Consumidor Final, RI=Responsable Inscripto, M=Monotributista, EX=Exento
+    condicion_iva = db.Column(db.String(10), default='CF')
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     talleres = db.relationship('Taller', backref='cliente', lazy=True)
     ventas = db.relationship('Venta', backref='cliente', lazy=True)
+
+    CONDICIONES_IVA = [
+        ('CF', 'Consumidor Final'),
+        ('RI', 'Responsable Inscripto'),
+        ('M',  'Monotributista'),
+        ('EX', 'Exento'),
+    ]
 
     @property
     def nombre_completo(self):
@@ -191,29 +201,75 @@ class TallerServicio(db.Model):
 class Venta(db.Model):
     __tablename__ = 'ventas'
     id = db.Column(db.Integer, primary_key=True)
+    # FACTURA / NOTA_VENTA
+    tipo_comprobante = db.Column(db.String(20), default='NOTA_VENTA', nullable=False)
+    punto_venta = db.Column(db.Integer, default=1)
+    numero_comprobante = db.Column(db.Integer)
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
     fecha = db.Column(db.DateTime, default=datetime.utcnow)
-    subtotal = db.Column(db.Float, default=0.0)
+    subtotal = db.Column(db.Float, default=0.0)   # importe neto gravado
+    iva_total = db.Column(db.Float, default=0.0)  # IVA total
     descuento = db.Column(db.Float, default=0.0)
     total = db.Column(db.Float, default=0.0)
     pagado = db.Column(db.Boolean, default=True)
     forma_pago = db.Column(db.String(50), default='efectivo')
+    # AFIP fields (only for FACTURA)
+    tipo_cbte_afip = db.Column(db.Integer)        # 1=FA, 6=FB, 11=FC
+    cae = db.Column(db.String(20))
+    fecha_vencimiento_cae = db.Column(db.Date)
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     items = db.relationship('VentaItem', backref='venta', lazy=True, cascade='all, delete-orphan')
+
+    TIPOS_COMPROBANTE = [
+        ('NOTA_VENTA', 'Nota de Venta'),
+        ('FACTURA',    'Factura Electrónica'),
+    ]
+
+    @property
+    def numero_display(self):
+        pv = self.punto_venta or 1
+        nro = self.numero_comprobante
+        if nro:
+            return f'{pv:04d}-{nro:08d}'
+        return f'#{self.id}'
+
+    @property
+    def tipo_display(self):
+        return dict(self.TIPOS_COMPROBANTE).get(self.tipo_comprobante, self.tipo_comprobante)
 
 
 class VentaItem(db.Model):
     __tablename__ = 'venta_items'
     id = db.Column(db.Integer, primary_key=True)
     venta_id = db.Column(db.Integer, db.ForeignKey('ventas.id'), nullable=False)
-    tipo = db.Column(db.String(10), nullable=False)  # producto / servicio
+    tipo = db.Column(db.String(10), nullable=False)  # producto / servicio / libre
     producto_id = db.Column(db.Integer, db.ForeignKey('productos.id'), nullable=True)
     servicio_id = db.Column(db.Integer, db.ForeignKey('servicios.id'), nullable=True)
-    cantidad = db.Column(db.Integer, default=1)
+    codigo = db.Column(db.String(50))
+    descripcion_libre = db.Column(db.String(300))  # free-text or product name snapshot
+    unidad = db.Column(db.String(20), default='unidad')
+    cantidad = db.Column(db.Float, default=1)
     precio_unitario = db.Column(db.Float, nullable=False)
-    subtotal = db.Column(db.Float, nullable=False)
+    bonificacion = db.Column(db.Float, default=0.0)  # discount %
+    alicuota_iva = db.Column(db.Float, default=21.0)  # IVA rate: 0, 10.5, 21, 27
+    subtotal_neto = db.Column(db.Float, default=0.0)  # net amount before IVA
+    subtotal = db.Column(db.Float, nullable=False)    # total with IVA
+
+    @property
+    def descripcion(self):
+        if self.descripcion_libre:
+            return self.descripcion_libre
+        if self.tipo == 'producto' and self.producto:
+            return self.producto.nombre
+        if self.tipo == 'servicio' and self.servicio:
+            return self.servicio.nombre
+        return ''
+
+    @property
+    def iva_monto(self):
+        return round((self.subtotal_neto or 0) * (self.alicuota_iva or 0) / 100, 2)
 
 
 class MovimientoCaja(db.Model):
@@ -255,6 +311,116 @@ class IngresoMercaderiaItem(db.Model):
     subtotal = db.Column(db.Float, nullable=False)
 
 
+# ─────────────────────────────────────────────
+# Módulo Facturación Electrónica (ARCA / AFIP)
+# ─────────────────────────────────────────────
+
+class ClienteFacturacion(db.Model):
+    """Datos fiscales del cliente para facturación electrónica."""
+    __tablename__ = 'clientes_facturacion'
+
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(200), nullable=False)
+    cuit = db.Column(db.String(20), nullable=True)
+    direccion = db.Column(db.String(300), nullable=True)
+    # CF=Consumidor Final, RI=Responsable Inscripto, M=Monotributista, EX=Exento
+    condicion_iva = db.Column(db.String(10), default='CF')
+    email = db.Column(db.String(200), nullable=True)
+    # Vínculo opcional con el modelo de clientes ya existente
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
+
+    facturas = db.relationship('Factura', backref='cliente', lazy=True)
+
+    # Códigos AFIP para tipo de documento
+    CONDICIONES_IVA = [
+        ('CF',  'Consumidor Final'),
+        ('RI',  'Responsable Inscripto'),
+        ('M',   'Monotributista'),
+        ('EX',  'Exento'),
+    ]
+
+    def __repr__(self):
+        return f'<ClienteFacturacion {self.nombre}>'
+
+
+class Factura(db.Model):
+    """Cabecera de comprobante electrónico emitido ante ARCA."""
+    __tablename__ = 'facturas'
+
+    id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(
+        db.Integer, db.ForeignKey('clientes_facturacion.id'), nullable=False
+    )
+    # tipo_cbte: 1=Factura A, 6=Factura B, 11=Factura C, 3=N.Crédito A, 8=N.Crédito B, 13=N.Crédito C
+    tipo_cbte = db.Column(db.Integer, nullable=False)
+    punto_vta = db.Column(db.Integer, nullable=False, default=1)
+    numero = db.Column(db.Integer, nullable=True)
+    fecha = db.Column(db.Date, nullable=False)
+    subtotal = db.Column(db.Numeric(12, 2), default=0)
+    iva = db.Column(db.Numeric(12, 2), default=0)
+    total = db.Column(db.Numeric(12, 2), default=0)
+    # Campos devueltos por ARCA
+    cae = db.Column(db.String(20), nullable=True)
+    vencimiento_cae = db.Column(db.Date, nullable=True)
+    # borrador | emitida | anulada
+    estado = db.Column(db.String(20), default='borrador', nullable=False)
+    concepto = db.Column(db.Integer, default=1)   # 1=Productos, 2=Servicios, 3=Mixto
+    forma_pago = db.Column(db.String(50), default='efectivo')
+    notas = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    items = db.relationship(
+        'FacturaDetalle', backref='factura', lazy=True, cascade='all, delete-orphan'
+    )
+
+    TIPOS_CBTE = [
+        (1,  'Factura A'),
+        (6,  'Factura B'),
+        (11, 'Factura C'),
+        (3,  'Nota de Crédito A'),
+        (8,  'Nota de Crédito B'),
+        (13, 'Nota de Crédito C'),
+    ]
+
+    @property
+    def tipo_cbte_display(self):
+        return dict(self.TIPOS_CBTE).get(self.tipo_cbte, str(self.tipo_cbte))
+
+    @property
+    def letra(self):
+        """Devuelve la letra del comprobante (A, B o C)."""
+        return {1: 'A', 6: 'B', 11: 'C', 3: 'A', 8: 'B', 13: 'C'}.get(
+            self.tipo_cbte, ''
+        )
+
+    @property
+    def numero_display(self):
+        if self.numero:
+            return f'{self.punto_vta:04d}-{self.numero:08d}'
+        return '—'
+
+    def __repr__(self):
+        return f'<Factura {self.numero_display}>'
+
+
+class FacturaDetalle(db.Model):
+    """Línea de detalle de un comprobante electrónico."""
+    __tablename__ = 'factura_detalle'
+
+    id = db.Column(db.Integer, primary_key=True)
+    factura_id = db.Column(
+        db.Integer, db.ForeignKey('facturas.id'), nullable=False
+    )
+    descripcion = db.Column(db.String(500), nullable=False)
+    cantidad = db.Column(db.Numeric(10, 2), nullable=False)
+    precio_unitario = db.Column(db.Numeric(12, 2), nullable=False)
+    subtotal = db.Column(db.Numeric(12, 2), nullable=False)
+
+    def __repr__(self):
+        return f'<FacturaDetalle {self.descripcion[:30]}>'
+
+
+# ─────────────────────────────────────────────
 # Cuentas disponibles para movimientos de caja
 CUENTAS_CAJA = [
     ('venta_productos', 'Venta de Productos'),

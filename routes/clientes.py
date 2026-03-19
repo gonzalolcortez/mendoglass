@@ -51,6 +51,8 @@ def nuevo():
             telefono=request.form.get('telefono', '').strip(),
             email=request.form.get('email', '').strip(),
             direccion=request.form.get('direccion', '').strip(),
+            cuit=request.form.get('cuit', '').strip() or None,
+            condicion_iva=request.form.get('condicion_iva', 'CF'),
             notas=request.form.get('notas', '').strip(),
         )
         db.session.add(cliente)
@@ -58,7 +60,7 @@ def nuevo():
         flash('Cliente creado correctamente.', 'success')
         return redirect(url_for('clientes.index'))
     return render_template('clientes/form.html', entity=None, titulo='Nuevo Cliente',
-                           cancel_url=url_for('clientes.index'))
+                           cancel_url=url_for('clientes.index'), es_cliente=True)
 
 
 @clientes_bp.route('/<int:id>')
@@ -99,12 +101,14 @@ def editar(id):
         cliente.telefono = request.form.get('telefono', '').strip()
         cliente.email = request.form.get('email', '').strip()
         cliente.direccion = request.form.get('direccion', '').strip()
+        cliente.cuit = request.form.get('cuit', '').strip() or None
+        cliente.condicion_iva = request.form.get('condicion_iva', 'CF')
         cliente.notas = request.form.get('notas', '').strip()
         db.session.commit()
         flash('Cliente actualizado correctamente.', 'success')
         return redirect(url_for('clientes.detalle', id=cliente.id))
     return render_template('clientes/form.html', entity=cliente, titulo='Editar Cliente',
-                           cancel_url=url_for('clientes.detalle', id=cliente.id))
+                           cancel_url=url_for('clientes.detalle', id=cliente.id), es_cliente=True)
 
 
 @clientes_bp.route('/<int:id>/eliminar', methods=['POST'])
@@ -139,7 +143,7 @@ def nuevo_proveedor():
         flash('Proveedor creado correctamente.', 'success')
         return redirect(url_for('clientes.index', tab='proveedores'))
     return render_template('clientes/form.html', entity=None, titulo='Nuevo Proveedor',
-                           cancel_url=url_for('clientes.index', tab='proveedores'))
+                           cancel_url=url_for('clientes.index', tab='proveedores'), es_cliente=False)
 
 
 @clientes_bp.route('/proveedor/<int:id>')
@@ -164,7 +168,7 @@ def editar_proveedor(id):
         flash('Proveedor actualizado correctamente.', 'success')
         return redirect(url_for('clientes.detalle_proveedor', id=proveedor.id))
     return render_template('clientes/form.html', entity=proveedor, titulo='Editar Proveedor',
-                           cancel_url=url_for('clientes.detalle_proveedor', id=proveedor.id))
+                           cancel_url=url_for('clientes.detalle_proveedor', id=proveedor.id), es_cliente=False)
 
 
 @clientes_bp.route('/proveedor/<int:id>/eliminar', methods=['POST'])

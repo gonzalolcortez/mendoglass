@@ -28,6 +28,22 @@
             <label class="form-label fw-semibold">Dirección</label>
             <input type="text" name="direccion" class="form-control" value="{{ entity.direccion if entity else '' }}">
           </div>
+          {% if es_cliente %}
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">CUIT</label>
+            <input type="text" name="cuit" class="form-control" placeholder="20-12345678-9"
+                   value="{{ entity.cuit if entity and entity.cuit else '' }}">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">Condición frente al IVA</label>
+            <select name="condicion_iva" class="form-select">
+              <option value="CF" {% if not entity or entity.condicion_iva == 'CF' %}selected{% endif %}>Consumidor Final</option>
+              <option value="RI" {% if entity and entity.condicion_iva == 'RI' %}selected{% endif %}>Responsable Inscripto</option>
+              <option value="M"  {% if entity and entity.condicion_iva == 'M'  %}selected{% endif %}>Monotributista</option>
+              <option value="EX" {% if entity and entity.condicion_iva == 'EX' %}selected{% endif %}>Exento</option>
+            </select>
+          </div>
+          {% endif %}
           <div class="col-12">
             <label class="form-label fw-semibold">Notas</label>
             <textarea name="notas" class="form-control" rows="3">{{ entity.notas if entity else '' }}</textarea>

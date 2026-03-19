@@ -1,3 +1,14 @@
-*.pyc
+# Certificados ARCA
+certs/
+*.key
+*.crt
+pedido.csr
+
+# Python
 __pycache__/
+*.py[cod]
+*.pyo
+
+# Flask / SQLite
 instance/
+*.db
