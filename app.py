@@ -1,6 +1,7 @@
-from flask import Flask
+from flask import Flask, jsonify
 from extensions import db, login_manager
 import os
+import time
 
 def create_app():
     app = Flask(__name__)
@@ -44,11 +45,29 @@ def create_app():
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
 
+    @app.route('/health')
+    def health():
+        return jsonify({"status": "ok"}), 200
+
     with app.app_context():
-        db.create_all()
-        _seed_default_user()
+        _init_db_with_retry(app)
 
     return app
+
+
+def _init_db_with_retry(app, retries=5, delay=3):
+    from sqlalchemy.exc import OperationalError, DatabaseError
+    for attempt in range(1, retries + 1):
+        try:
+            db.create_all()
+            _seed_default_user()
+            return
+        except (OperationalError, DatabaseError) as e:
+            if attempt == retries:
+                app.logger.error(f"Database initialization failed after {retries} attempts: {e}")
+                raise
+            app.logger.warning(f"Database not ready (attempt {attempt}/{retries}): {e}. Retrying in {delay}s...")
+            time.sleep(delay)
 
 
 def _seed_default_user():
@@ -72,5 +91,5 @@ app = create_app()
 
 if __name__ == '__main__':
     debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     app.run(debug=debug, host='0.0.0.0', port=port)
