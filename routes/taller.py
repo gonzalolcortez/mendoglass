@@ -2,9 +2,11 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
 from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto, Servicio, MovimientoCaja, Tecnico, FORMAS_PAGO, CUENTAS_CAJA, Categoria
 from datetime import datetime
-from whatsapp_api import enviar_whatsapp
+import logging
+from twilio_whatsapp import enviar_whatsapp
 
 taller_bp = Blueprint('taller', __name__)
+logger = logging.getLogger(__name__)
 
 ESTADOS = [
     ('recibido', 'Recibido'),
@@ -93,12 +95,14 @@ def nuevo():
                     f"📋 Orden: #{taller.numero}\n"
                     f"📱 Equipo: {equipo}\n"
                     f"🛠 Problema: {taller.descripcion_problema}\n\n"
-                    f"Estado actual: En diagnóstico\n\n"
-                    f"Le avisaremos cuando haya novedades."
+                    f"Estado: En diagnóstico\n\n"
+                    f"Gracias por confiar en nosotros."
                 )
                 enviar_whatsapp(cliente.telefono, mensaje)
-        except Exception:
-            pass
+            else:
+                logger.info('[Twilio WhatsApp] Cliente sin teléfono. Orden #%s', taller.numero)
+        except Exception as exc:
+            logger.exception('[Twilio WhatsApp] Falló notificación para orden #%s: %s', taller.numero, exc)
 
         flash(f'Orden de taller #{taller.numero} creada correctamente.', 'success')
         return redirect(url_for('taller.detalle', id=taller.id))
