@@ -1,6 +1,11 @@
-from flask import Flask
+from flask import Flask, jsonify
 from extensions import db, login_manager
+import logging
 import os
+import time
+
+logger = logging.getLogger(__name__)
+
 
 def create_app():
     app = Flask(__name__)
@@ -12,6 +17,10 @@ def create_app():
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
+    }
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -44,11 +53,36 @@ def create_app():
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
 
-    with app.app_context():
-        db.create_all()
-        _seed_default_user()
+    @app.route('/health')
+    def health():
+        return jsonify({'status': 'ok'}), 200
+
+    _init_db(app)
 
     return app
+
+
+def _init_db(app, retries=3, delay=2):
+    """Initialize the database with retry logic for slow cloud DB startups."""
+    for attempt in range(1, retries + 1):
+        try:
+            with app.app_context():
+                db.create_all()
+                _seed_default_user()
+            return
+        except Exception as exc:
+            if attempt < retries:
+                logger.warning(
+                    "DB init attempt %d/%d failed (%s). Retrying in %ds...",
+                    attempt, retries, exc, delay,
+                )
+                time.sleep(delay)
+            else:
+                logger.error(
+                    "DB init failed after %d attempts: %s. "
+                    "The app will start without DB initialization.",
+                    retries, exc,
+                )
 
 
 def _seed_default_user():
