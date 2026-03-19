@@ -240,8 +240,7 @@ class AfipClient:
         imp_neto: float,
         imp_iva: float,
         imp_total: float,
-        alicuota_iva_id: int = IVA_21,
-        alicuota_iva_pct: float = ALICUOTA_IVA_DEFECTO,
+        ivas: list | None = None,
         moneda_id: str = 'PES',
         moneda_ctz: float = 1.0,
         fecha_serv_desde: str | None = None,  # 'YYYYMMDD' – requerido si concepto in (2,3)
@@ -253,6 +252,13 @@ class AfipClient:
         Para comprobantes de Servicios (concepto=2) o Mixto (concepto=3)
         ARCA exige ``fecha_serv_desde`` y ``fecha_serv_hasta``.  Si no se
         suministran se usa ``fecha`` como período de un día.
+
+        Args:
+            ivas: Lista de dicts con las alicuotas de IVA del comprobante.
+                  Cada dict debe tener las claves ``iva_id`` (int, codigo AFIP),
+                  ``base_imp`` (float, importe neto gravado) e ``importe``
+                  (float, monto de IVA).  Si se omite y ``imp_iva > 0`` se
+                  asume una unica alicuota al 21 % sobre todo el neto.
 
         Returns:
             dict con claves: cae, vencimiento_cae, numero, resultado.
@@ -293,13 +299,23 @@ class AfipClient:
         except Exception as exc:
             raise AfipError(f'Error construyendo la factura: {exc}') from exc
 
-        # Agregar IVA (solo para facturas A o servicios con IVA)
+        # Agregar alícuotas de IVA.  ARCA permite múltiples alícuotas por
+        # comprobante (p.ej. items al 21 % e items al 10.5 %).
         if imp_iva > 0:
-            wsfe.AgregarIva(
-                iva_id=alicuota_iva_id,
-                base_imp=round(imp_neto, 2),
-                importe=round(imp_iva, 2),
-            )
+            if ivas:
+                for iva in ivas:
+                    wsfe.AgregarIva(
+                        iva_id=iva['iva_id'],
+                        base_imp=round(iva['base_imp'], 2),
+                        importe=round(iva['importe'], 2),
+                    )
+            else:
+                # Fallback: una única alícuota al 21 % sobre todo el neto
+                wsfe.AgregarIva(
+                    iva_id=IVA_21,
+                    base_imp=round(imp_neto, 2),
+                    importe=round(imp_iva, 2),
+                )
 
         # Solicitar CAE
         try:
