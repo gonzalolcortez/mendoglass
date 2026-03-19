@@ -50,6 +50,39 @@ def _ensure_ventas_columns(app):
         ', '.join(name for name, _ in missing_columns),
     )
 
+
+def _ensure_clientes_columns(app):
+    """Ensure legacy DBs have the columns required by the current Cliente model."""
+    required_columns = {
+        'cuit': 'VARCHAR(20)',
+        'condicion_iva': "VARCHAR(10) DEFAULT 'CF'",
+        'notas': 'TEXT',
+        'created_at': 'TIMESTAMP',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('clientes'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('clientes')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE clientes ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing clientes columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
+
 def create_app():
     app = Flask(__name__)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -97,8 +130,9 @@ def create_app():
         _seed_default_user()
         try:
             _ensure_ventas_columns(app)
+            _ensure_clientes_columns(app)
         except SQLAlchemyError as e:
-            app.logger.error('Could not apply runtime schema patch for ventas: %s', e)
+            app.logger.error('Could not apply runtime schema patch: %s', e)
 
     @app.route('/health')
     def health():
