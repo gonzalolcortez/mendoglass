@@ -179,8 +179,11 @@ def create_app():
     app.register_blueprint(whatsapp_bp)
 
     with app.app_context():
-        db.create_all()
-        _seed_default_user()
+        try:
+            _init_db_with_retry(app, retries=5, delay=3)
+        except Exception as e:
+            app.logger.error('Database init skipped during startup: %s', e)
+
         try:
             _ensure_ventas_columns(app)
             _ensure_clientes_columns(app)
