@@ -12,13 +12,43 @@ logger = logging.getLogger(__name__)
 
 
 def _normalizar_numero(numero):
-    """Normaliza el número a dígitos para formato E.164 sin prefijo '+'."""
+    """Normaliza números de Argentina al formato móvil E.164 sin '+' (549...)."""
     if numero is None:
         return ""
+
     numero_str = str(numero).strip()
-    if numero_str.startswith("+"):
-        numero_str = numero_str[1:]
-    return "".join(ch for ch in numero_str if ch.isdigit())
+    if not numero_str:
+        return ""
+
+    # Quita todo lo que no sea dígito (incluye '+', espacios, guiones, etc.)
+    digitos = "".join(ch for ch in numero_str if ch.isdigit())
+    if not digitos:
+        return ""
+
+    # Quita prefijo internacional "00" si viene así (ej: 0054...)
+    while digitos.startswith("00"):
+        digitos = digitos[2:]
+
+    # Caso con código de país AR (54...)
+    if digitos.startswith("54"):
+        resto = digitos[2:]
+        if not resto:
+            return ""
+        if resto.startswith("9"):
+            return "54" + resto
+        return "549" + resto
+
+    # Caso local/nacional: quita 0(s) inicial(es) de larga distancia
+    digitos = digitos.lstrip("0")
+    if not digitos:
+        return ""
+
+    # Si ya viene con 9 nacional móvil, anteponer 54
+    if digitos.startswith("9"):
+        return "54" + digitos
+
+    # Caso general local (ej: 2613462834 -> 5492613462834)
+    return "549" + digitos
 
 
 def enviar_whatsapp(numero, mensaje):
