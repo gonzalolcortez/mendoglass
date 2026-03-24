@@ -89,6 +89,13 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 | `ARCA_CERT_PATH` | Ruta al archivo de certificado (alternativa a `ARCA_CERT`) | `/etc/arca/cert.pem` |
 | `ARCA_KEY_PATH` | Ruta al archivo de clave (alternativa a `ARCA_KEY`) | `/etc/arca/key.pem` |
 | `ARCA_PROD` | `true` producción, otro valor homologación | `false` |
+| `FACTURA_EMISOR_RAZON_SOCIAL` | Razón social para impresión de factura | `URITIC SAS` |
+| `FACTURA_EMISOR_DIRECCION` | Domicilio comercial impreso en factura | `Av. Siempre Viva 123` |
+| `FACTURA_EMISOR_CONDICION_IVA` | Condición fiscal del emisor en factura | `Responsable Inscripto` |
+| `FACTURA_EMISOR_IIBB` | Número de Ingresos Brutos en factura | `901-123456-7` |
+| `FACTURA_EMISOR_INICIO_ACTIVIDADES` | Fecha de inicio de actividades en factura | `01/01/2020` |
+| `FACTURA_EMISOR_TELEFONO` | Teléfono del emisor en factura | `+54 11 5555-5555` |
+| `FACTURA_EMISOR_EMAIL` | Email del emisor en factura | `admin@empresa.com` |
 
 > Si `DATABASE_URL` no está definida, la app usa SQLite (`instance/sistema.db`) como base de datos local.
 
@@ -100,6 +107,7 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 2. Para pruebas usá homologación (`ARCA_PROD=false`).
 3. Para producción usá `ARCA_PROD=true` y certificados válidos en producción.
 4. Al registrar una venta con tipo `FACTURA`, el sistema solicita CAE automáticamente y guarda CAE + vencimiento.
+5. Desde el detalle de la venta podés usar **Imprimir factura** para generar el comprobante fiscal con datos del emisor/cliente y QR AFIP.
 
 ### Preflight ARCA / WSFEv1
 

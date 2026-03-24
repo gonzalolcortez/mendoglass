@@ -1,3 +1,8 @@
+import base64
+import io
+import json
+import os
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from models import (
@@ -21,6 +26,13 @@ CONDICIONES_VENTA = FORMAS_PAGO
 
 # Map alicuota → AFIP iva_id
 _AFIP_IVA_ID = {0.0: 4, 10.5: 8, 21.0: 5, 27.0: 6}
+
+
+_TIPO_CBTE_LETRA = {
+    1: 'A',
+    6: 'B',
+    11: 'C',
+}
 
 
 # ─────────────────────────────────────────────
@@ -52,6 +64,94 @@ def _tipo_cbte_afip(condicion_iva: str) -> int:
         return 11  # Factura C
     else:
         return 6   # Factura B (Consumidor Final)
+
+
+def _env_first(*names: str) -> str:
+    for name in names:
+        value = os.environ.get(name, '').strip()
+        if value:
+            return value
+    return ''
+
+
+def _datos_emisor_factura() -> dict:
+    """Arma los datos del emisor para la plantilla imprimible de factura."""
+    cuit_raw = _env_first('ARCA_CUIT', 'AFIP_CUIT')
+    if not cuit_raw:
+        try:
+            from modules.facturacion.afip_client import (
+                _autodescubrir_cert_key,
+                _extraer_cuit_desde_certificado,
+            )
+
+            cert_path, _ = _autodescubrir_cert_key()
+            if cert_path:
+                cuit_raw = _extraer_cuit_desde_certificado(cert_path)
+        except Exception:
+            cuit_raw = ''
+
+    cuit = cuit_raw if cuit_raw else 'No configurado'
+    return {
+        'razon_social': _env_first('FACTURA_EMISOR_RAZON_SOCIAL', 'ARCA_RAZON_SOCIAL', 'EMPRESA_NOMBRE') or 'Emisor no configurado',
+        'direccion': _env_first('FACTURA_EMISOR_DIRECCION', 'EMPRESA_DIRECCION') or 'Dirección no configurada',
+        'condicion_iva': _env_first('FACTURA_EMISOR_CONDICION_IVA', 'EMPRESA_CONDICION_IVA') or 'Responsable Inscripto',
+        'ingresos_brutos': _env_first('FACTURA_EMISOR_IIBB', 'EMPRESA_IIBB') or 'No informado',
+        'inicio_actividades': _env_first('FACTURA_EMISOR_INICIO_ACTIVIDADES', 'EMPRESA_INICIO_ACTIVIDADES') or 'No informado',
+        'telefono': _env_first('FACTURA_EMISOR_TELEFONO', 'EMPRESA_TELEFONO') or '',
+        'email': _env_first('FACTURA_EMISOR_EMAIL', 'EMPRESA_EMAIL') or '',
+        'cuit': cuit,
+    }
+
+
+def _qr_afip_data(venta: Venta, emisor: dict) -> dict | None:
+    """Construye URL e imagen base64 del QR AFIP para comprobantes con CAE."""
+    if not venta.cae or not venta.numero_comprobante:
+        return None
+
+    try:
+        import qrcode
+        from modules.facturacion.afip_client import tipo_doc_receptor
+
+        cuit_emisor = str(emisor.get('cuit', '')).replace('-', '').replace('.', '').strip()
+        if not (cuit_emisor.isdigit() and len(cuit_emisor) == 11):
+            return None
+
+        condicion_iva = (venta.cliente.condicion_iva if venta.cliente else 'CF') or 'CF'
+        cuit_cliente = venta.cliente.cuit if venta.cliente else None
+        tipo_doc, nro_doc = tipo_doc_receptor(condicion_iva, cuit_cliente)
+
+        payload = {
+            'ver': 1,
+            'fecha': (venta.fecha or datetime.now()).strftime('%Y-%m-%d'),
+            'cuit': int(cuit_emisor),
+            'ptoVta': int(venta.punto_venta or 1),
+            'tipoCmp': int(venta.tipo_cbte_afip or 6),
+            'nroCmp': int(venta.numero_comprobante),
+            'importe': round(float(venta.total or 0.0), 2),
+            'moneda': 'PES',
+            'ctz': 1,
+            'tipoDocRec': int(tipo_doc),
+            'nroDocRec': int(str(nro_doc or '0')),
+            'tipoCodAut': 'E',
+            'codAut': int(str(venta.cae)),
+        }
+
+        payload_b64 = base64.b64encode(
+            json.dumps(payload, separators=(',', ':')).encode('utf-8')
+        ).decode('utf-8')
+        qr_url = f'https://www.afip.gob.ar/fe/qr/?p={payload_b64}'
+
+        qr_img = qrcode.make(qr_url)
+        buffer = io.BytesIO()
+        qr_img.save(buffer, format='PNG')
+        qr_png_b64 = base64.b64encode(buffer.getvalue()).decode('ascii')
+
+        return {
+            'url': qr_url,
+            'png_b64': qr_png_b64,
+        }
+    except Exception:
+        return None
 
 
 def _emitir_ante_afip(venta: Venta):
@@ -399,6 +499,38 @@ def emitir(id):
     except Exception as exc:
         flash(f'Error al emitir: {exc}', 'danger')
     return redirect(url_for('ventas.detalle', id=id))
+
+
+@ventas_bp.route('/<int:id>/imprimir')
+@login_required
+def imprimir(id):
+    """Vista de impresión de factura electrónica."""
+    venta = Venta.query.get_or_404(id)
+    if venta.tipo_comprobante != 'FACTURA':
+        flash('Solo se puede imprimir formato fiscal para comprobantes tipo FACTURA.', 'warning')
+        return redirect(url_for('ventas.detalle', id=id))
+
+    iva_breakdown: dict[float, dict] = {}
+    for item in venta.items:
+        alicuota = item.alicuota_iva or 0.0
+        if alicuota not in iva_breakdown:
+            iva_breakdown[alicuota] = {'neto': 0.0, 'iva': 0.0}
+        iva_breakdown[alicuota]['neto'] += item.subtotal_neto or 0.0
+        iva_breakdown[alicuota]['iva'] += item.iva_monto
+
+    tipo_cbte = venta.tipo_cbte_afip or _tipo_cbte_afip((venta.cliente.condicion_iva if venta.cliente else 'CF') or 'CF')
+    letra = _TIPO_CBTE_LETRA.get(tipo_cbte, 'B')
+    emisor = _datos_emisor_factura()
+    qr_afip = _qr_afip_data(venta, emisor)
+
+    return render_template(
+        'ventas/factura_print.html',
+        venta=venta,
+        iva_breakdown=iva_breakdown,
+        emisor=emisor,
+        letra=letra,
+        qr_afip=qr_afip,
+    )
 
 
 @ventas_bp.route('/<int:id>/eliminar', methods=['POST'])
