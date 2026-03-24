@@ -1,8 +1,8 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, g, request, has_request_context
 from extensions import db, login_manager
 import os
 import time
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect, text, event
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -131,6 +131,62 @@ def _ensure_venta_items_columns(app):
         ', '.join(name for name, _ in missing_columns),
     )
 
+
+def _install_request_metrics(app):
+    """Install optional per-request performance metrics for profiling."""
+    if not app.config.get('PERF_REQUEST_METRICS', False):
+        return
+
+    monitored_prefixes = ('/taller', '/stock', '/ventas', '/clientes', '/caja', '/contabilidad')
+
+    @app.before_request
+    def _perf_before_request():
+        g.perf_start = time.perf_counter()
+        g.perf_sql_queries = 0
+        g.perf_sql_time_ms = 0.0
+
+    @app.after_request
+    def _perf_after_request(response):
+        if not hasattr(g, 'perf_start'):
+            return response
+
+        elapsed_ms = (time.perf_counter() - g.perf_start) * 1000
+        sql_queries = getattr(g, 'perf_sql_queries', 0)
+        sql_time_ms = getattr(g, 'perf_sql_time_ms', 0.0)
+
+        response.headers['X-Perf-Time-Ms'] = f'{elapsed_ms:.2f}'
+        response.headers['X-Perf-Sql-Queries'] = str(sql_queries)
+        response.headers['X-Perf-Sql-Time-Ms'] = f'{sql_time_ms:.2f}'
+
+        if request.path == '/' or request.path.startswith(monitored_prefixes):
+            app.logger.info(
+                '[PERF] %s %s -> status=%s total_ms=%.2f sql_queries=%s sql_ms=%.2f',
+                request.method,
+                request.path,
+                response.status_code,
+                elapsed_ms,
+                sql_queries,
+                sql_time_ms,
+            )
+        return response
+
+    if app.extensions.get('perf_sql_events_installed'):
+        return
+
+    @event.listens_for(db.engine, 'before_cursor_execute')
+    def _perf_before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        context._query_start_time = time.perf_counter()
+
+    @event.listens_for(db.engine, 'after_cursor_execute')
+    def _perf_after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        if has_request_context() and hasattr(g, 'perf_sql_queries'):
+            g.perf_sql_queries += 1
+            start = getattr(context, '_query_start_time', None)
+            if start is not None:
+                g.perf_sql_time_ms += (time.perf_counter() - start) * 1000
+
+    app.extensions['perf_sql_events_installed'] = True
+
 def create_app():
     app = Flask(__name__)
     _configure_timezone(app)
@@ -142,6 +198,7 @@ def create_app():
 
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['PERF_REQUEST_METRICS'] = os.environ.get('PERF_REQUEST_METRICS', 'false').lower() == 'true'
 
     db.init_app(app)
     login_manager.init_app(app)
@@ -181,6 +238,8 @@ def create_app():
             _init_db_with_retry(app, retries=5, delay=3)
         except Exception as e:
             app.logger.error('Database init skipped during startup: %s', e)
+
+        _install_request_metrics(app)
 
         try:
             _ensure_ventas_columns(app)

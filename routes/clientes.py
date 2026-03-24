@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
-from models import db, Cliente, Proveedor
+from models import db, Cliente, Proveedor, Taller, IngresoMercaderia
+from sqlalchemy import func
 
 clientes_bp = Blueprint('clientes', __name__)
 
@@ -23,7 +24,16 @@ def index():
             ).order_by(Proveedor.apellido).all()
         else:
             proveedores = Proveedor.query.order_by(Proveedor.apellido).all()
+        proveedores_ids = [p.id for p in proveedores]
+        ingresos_count = {}
+        if proveedores_ids:
+            rows = (db.session.query(IngresoMercaderia.proveedor_id, func.count(IngresoMercaderia.id))
+                    .filter(IngresoMercaderia.proveedor_id.in_(proveedores_ids))
+                    .group_by(IngresoMercaderia.proveedor_id)
+                    .all())
+            ingresos_count = {pid: cnt for pid, cnt in rows}
         return render_template('clientes/index.html', clientes=[], proveedores=proveedores,
+                               talleres_count={}, ingresos_count=ingresos_count,
                                tab=tab, q=q)
 
     if q:
@@ -37,7 +47,16 @@ def index():
         ).order_by(Cliente.apellido).all()
     else:
         clientes = Cliente.query.order_by(Cliente.apellido).all()
+    cliente_ids = [c.id for c in clientes]
+    talleres_count = {}
+    if cliente_ids:
+        rows = (db.session.query(Taller.cliente_id, func.count(Taller.id))
+                .filter(Taller.cliente_id.in_(cliente_ids))
+                .group_by(Taller.cliente_id)
+                .all())
+        talleres_count = {cid: cnt for cid, cnt in rows}
     return render_template('clientes/index.html', clientes=clientes, proveedores=[],
+                           talleres_count=talleres_count, ingresos_count={},
                            tab=tab, q=q)
 
 

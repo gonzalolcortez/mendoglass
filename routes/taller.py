@@ -4,6 +4,7 @@ from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto
 from datetime import datetime
 import logging
 from twilio_whatsapp import enviar_whatsapp
+from sqlalchemy.orm import joinedload, selectinload
 
 taller_bp = Blueprint('taller', __name__)
 logger = logging.getLogger(__name__)
@@ -43,8 +44,13 @@ def index():
                 Taller.cliente_id.in_(clientes_ids) if clientes_ids else False,
             )
         )
-    # Orders with pending debt (entregado but unpaid) appear first
-    talleres = query.order_by(
+    # Eager loading para evitar consultas N+1 en listado y cálculo de totales.
+    # El template usa cliente y propiedades que recorren productos/servicios.
+    talleres = query.options(
+        joinedload(Taller.cliente),
+        selectinload(Taller.productos_usados).joinedload(TallerProducto.producto),
+        selectinload(Taller.servicios_usados),
+    ).order_by(
         db.case((db.and_(Taller.estado == 'entregado', Taller.pagado.is_(False)), 0), else_=1),
         Taller.created_at.desc()
     ).all()

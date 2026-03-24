@@ -2,7 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
 from models import db, MovimientoCaja, CUENTAS_CAJA, FORMAS_PAGO
 from datetime import datetime, date
-from sqlalchemy import func
+from sqlalchemy import func, case
 
 caja_bp = Blueprint('caja', __name__)
 
@@ -32,24 +32,26 @@ def index():
 
     movimientos = query.order_by(MovimientoCaja.fecha.desc()).all()
 
-    total_ingresos = sum(m.monto for m in movimientos if m.tipo == 'ingreso')
-    total_egresos = sum(m.monto for m in movimientos if m.tipo == 'egreso')
+    total_ingresos, total_egresos = query.with_entities(
+        func.coalesce(func.sum(case((MovimientoCaja.tipo == 'ingreso', MovimientoCaja.monto), else_=0.0)), 0.0),
+        func.coalesce(func.sum(case((MovimientoCaja.tipo == 'egreso', MovimientoCaja.monto), else_=0.0)), 0.0),
+    ).first()
     balance = total_ingresos - total_egresos
 
-    # Saldos por forma de pago usando agregación DB (todos los movimientos, sin filtro)
-    rows_ing = db.session.query(
-        MovimientoCaja.forma_pago, func.sum(MovimientoCaja.monto)
-    ).filter_by(tipo='ingreso').group_by(MovimientoCaja.forma_pago).all()
-
-    rows_egr = db.session.query(
-        MovimientoCaja.forma_pago, func.sum(MovimientoCaja.monto)
-    ).filter_by(tipo='egreso').group_by(MovimientoCaja.forma_pago).all()
+    # Saldos por forma de pago usando agregación DB (todos los movimientos, sin filtro).
+    rows_fp = (
+        db.session.query(MovimientoCaja.tipo, MovimientoCaja.forma_pago, func.sum(MovimientoCaja.monto))
+        .group_by(MovimientoCaja.tipo, MovimientoCaja.forma_pago)
+        .all()
+    )
 
     saldos_fp = {}
-    for fp, total in rows_ing:
-        saldos_fp[fp or 'efectivo'] = saldos_fp.get(fp or 'efectivo', 0.0) + total
-    for fp, total in rows_egr:
-        saldos_fp[fp or 'efectivo'] = saldos_fp.get(fp or 'efectivo', 0.0) - total
+    for mov_tipo, fp, total in rows_fp:
+        key = fp or 'efectivo'
+        if mov_tipo == 'ingreso':
+            saldos_fp[key] = saldos_fp.get(key, 0.0) + total
+        elif mov_tipo == 'egreso':
+            saldos_fp[key] = saldos_fp.get(key, 0.0) - total
 
     return render_template('caja/index.html',
                            movimientos=movimientos,
