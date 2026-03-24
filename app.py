@@ -16,8 +16,6 @@ def _configure_timezone(app):
         time.tzset()
     except AttributeError:
         app.logger.warning('tzset is not available on this platform; TZ=%s', tz_name)
-
-
 def _ensure_ventas_columns(app):
     """Ensure legacy DBs have the columns required by the current Venta model."""
     dialect = db.engine.dialect.name
@@ -194,7 +192,6 @@ def create_app():
     @app.route('/health')
     def health():
         return jsonify({"status": "ok"}), 200
-
     return app
 
 
