@@ -6,6 +6,11 @@
 <a href="{{ url_for('ventas.index') }}" class="btn btn-outline-secondary btn-sm">
   <i class="bi bi-arrow-left me-1"></i>Volver
 </a>
+{% if venta.tipo_comprobante == 'FACTURA' %}
+<a href="{{ url_for('ventas.imprimir', id=venta.id) }}" target="_blank" class="btn btn-outline-primary btn-sm">
+  <i class="bi bi-printer me-1"></i>Imprimir factura
+</a>
+{% endif %}
 {% if venta.tipo_comprobante == 'FACTURA' and not venta.cae %}
 <form method="post" action="{{ url_for('ventas.emitir', id=venta.id) }}" class="d-inline">
   <button class="btn btn-warning btn-sm">
@@ -54,17 +59,19 @@
         <div class="col-sm-6">
           <div class="fw-semibold">Cliente</div>
           <div>{{ venta.cliente.nombre_completo if venta.cliente else '— Mostrador (sin cliente)' }}</div>
-          {% if venta.cliente and venta.cliente.cuit %}
+          {% if venta.tipo_comprobante == 'FACTURA' and venta.cliente and venta.cliente.cuit %}
           <div class="text-muted small">CUIT: {{ venta.cliente.cuit }}</div>
           {% endif %}
           {% if venta.cliente and venta.cliente.direccion %}
           <div class="text-muted small">{{ venta.cliente.direccion }}</div>
           {% endif %}
         </div>
+        {% if venta.tipo_comprobante == 'FACTURA' %}
         <div class="col-sm-3">
           <div class="fw-semibold">Condición IVA</div>
           <div>{{ venta.cliente.condicion_iva if venta.cliente else 'CF' }}</div>
         </div>
+        {% endif %}
         <div class="col-sm-3">
           <div class="fw-semibold">Condición de Venta</div>
           <div>{{ venta.forma_pago | title }}</div>
@@ -82,9 +89,11 @@
               <th>Unidad</th>
               <th class="text-end">P.Unit.</th>
               <th class="text-center">Bonif.%</th>
-              <th class="text-end">Subtotal Neto</th>
+              <th class="text-end">Subtotal</th>
+              {% if venta.tipo_comprobante == 'FACTURA' %}
               <th class="text-center">IVA %</th>
               <th class="text-end">Subtotal c/IVA</th>
+              {% endif %}
             </tr>
           </thead>
           <tbody>
@@ -97,10 +106,12 @@
             <td class="text-end">${{ "%.2f"|format(item.precio_unitario) }}</td>
             <td class="text-center">{% if item.bonificacion %}{{ item.bonificacion }}%{% else %}—{% endif %}</td>
             <td class="text-end">${{ "%.2f"|format(item.subtotal_neto or 0) }}</td>
+            {% if venta.tipo_comprobante == 'FACTURA' %}
             <td class="text-center">
               <span class="badge bg-light text-dark">{{ item.alicuota_iva or 0 }}%</span>
             </td>
             <td class="text-end fw-semibold">${{ "%.2f"|format(item.subtotal) }}</td>
+            {% endif %}
           </tr>
           {% endfor %}
           </tbody>
@@ -116,6 +127,7 @@
   <!-- Right: totals -->
   <div class="col-lg-4">
     <div class="form-card">
+      {% if venta.tipo_comprobante == 'FACTURA' %}
       <div class="section-title">Resumen de Impuestos</div>
 
       {% for alicuota, datos in iva_breakdown.items() | sort %}
@@ -138,6 +150,14 @@
         <span class="text-muted">IVA total:</span>
         <span class="text-primary fw-semibold">${{ "%.2f"|format(venta.iva_total or 0) }}</span>
       </div>
+      {% else %}
+      <div class="section-title">Resumen de la Nota de Venta</div>
+
+      <div class="d-flex justify-content-between mb-1">
+        <span class="text-muted">Subtotal:</span>
+        <span class="fw-semibold">${{ "%.2f"|format(venta.subtotal) }}</span>
+      </div>
+      {% endif %}
       <hr>
       <div class="d-flex justify-content-between mb-3">
         <span class="fw-bold fs-5">TOTAL:</span>

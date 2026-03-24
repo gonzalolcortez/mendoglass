@@ -3,9 +3,33 @@ services:
     name: sistema-backup
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app -c gunicorn.conf.py
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120 --access-logfile - --error-logfile -
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_DEBUG
         value: "false"
+      - key: TZ
+        value: "America/Argentina/Buenos_Aires"
+      - key: ARCA_CUIT
+        value: "30718185854"
+      - key: ARCA_CERT_PATH
+        value: "/opt/render/project/src/certs/URITIC SAS _703774b9a9652253.crt"
+      - key: ARCA_KEY_PATH
+        value: "/opt/render/project/src/certs/arca-homo-20260324-154804.key"
+      - key: ARCA_PROD
+        value: "true"
+      - key: FACTURA_EMISOR_RAZON_SOCIAL
+        value: "URITIC SAS"
+      - key: FACTURA_EMISOR_DIRECCION
+        value: "San Juan 721, Ciudad, Mendoza"
+      - key: FACTURA_EMISOR_CONDICION_IVA
+        value: "Responsable Inscripto"
+      - key: FACTURA_EMISOR_IIBB
+        value: "0951886"
+      - key: FACTURA_EMISOR_INICIO_ACTIVIDADES
+        value: "01/07/2023"
+      - key: FACTURA_EMISOR_TELEFONO
+        value: "+54 9 261 723-4524"
+      - key: FACTURA_EMISOR_EMAIL
+        value: "info@uritic.com.ar"

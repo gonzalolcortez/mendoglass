@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Factura {{ letra }} {{ venta.numero_display }}</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      color: #111;
+      font-size: 12px;
+      margin: 0;
+      background: #fff;
+    }
+
+    .no-print {
+      text-align: right;
+      margin-bottom: 10px;
+    }
+
+    .no-print button {
+      border: none;
+      background: #0d6efd;
+      color: #fff;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .invoice {
+      border: 1px solid #111;
+      padding: 10px;
+    }
+
+    .head {
+      display: grid;
+      grid-template-columns: 1fr 140px 1fr;
+      gap: 10px;
+      align-items: stretch;
+      margin-bottom: 8px;
+    }
+
+    .box {
+      border: 1px solid #111;
+      padding: 8px;
+      min-height: 118px;
+    }
+
+    .brand {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 5px;
+      line-height: 1;
+    }
+
+    .small {
+      font-size: 11px;
+      color: #333;
+      margin: 2px 0;
+    }
+
+    .center-box {
+      border: 1px solid #111;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      min-height: 118px;
+    }
+
+    .letra {
+      font-size: 52px;
+      font-weight: 700;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .tipo {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .line {
+      margin: 3px 0;
+      font-size: 12px;
+    }
+
+    .line strong {
+      display: inline-block;
+      min-width: 92px;
+    }
+
+    .client {
+      border: 1px solid #111;
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+
+    .client-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border: 1px solid #111;
+      padding: 6px;
+    }
+
+    th {
+      background: #f5f5f5;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .text-right {
+      text-align: right;
+    }
+
+    .text-center {
+      text-align: center;
+    }
+
+    .totals {
+      width: 360px;
+      margin-left: auto;
+      margin-top: 8px;
+      border: 1px solid #111;
+      padding: 8px;
+    }
+
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0;
+    }
+
+    .totals-row.total {
+      border-top: 1px solid #111;
+      margin-top: 6px;
+      padding-top: 6px;
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .tax {
+      margin-top: 8px;
+      border: 1px solid #111;
+      padding: 8px;
+    }
+
+    .tax-title {
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .cae {
+      border: 1px solid #111;
+      margin-top: 8px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    .qr {
+      border: 1px solid #111;
+      margin-top: 8px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .qr img {
+      width: 100px;
+      height: 100px;
+      display: block;
+    }
+
+    .footer {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #444;
+    }
+
+    @media print {
+      .no-print {
+        display: none;
+      }
+
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="no-print">
+  <button onclick="window.print()">Imprimir factura</button>
+</div>
+
+<div class="invoice">
+  <div class="head">
+    <div class="box">
+      <p class="brand">{{ emisor.razon_social }}</p>
+      <p class="small">{{ emisor.direccion }}</p>
+      <p class="small">CUIT: {{ emisor.cuit }}</p>
+      <p class="small">Condición IVA: {{ emisor.condicion_iva }}</p>
+      <p class="small">Ingresos Brutos: {{ emisor.ingresos_brutos }}</p>
+      <p class="small">Inicio de actividades: {{ emisor.inicio_actividades }}</p>
+      {% if emisor.telefono %}
+      <p class="small">Tel: {{ emisor.telefono }}</p>
+      {% endif %}
+      {% if emisor.email %}
+      <p class="small">Email: {{ emisor.email }}</p>
+      {% endif %}
+    </div>
+
+    <div class="center-box">
+      <div class="letra">{{ letra }}</div>
+      <div class="tipo">FACTURA</div>
+      <div>ORIGINAL</div>
+    </div>
+
+    <div class="box">
+      <div class="line"><strong>Punto de venta:</strong> {{ "%04d"|format(venta.punto_venta or 1) }}</div>
+      <div class="line"><strong>Comp. Nro:</strong> {{ "%08d"|format(venta.numero_comprobante or 0) }}</div>
+      <div class="line"><strong>Fecha:</strong> {{ venta.fecha.strftime('%d/%m/%Y') }}</div>
+      <div class="line"><strong>Forma pago:</strong> {{ venta.forma_pago | title }}</div>
+      <div class="line"><strong>Tipo:</strong> {{ venta.tipo_display }}</div>
+      {% if not venta.cae %}
+      <div class="line" style="color:#b02a37;"><strong>Estado:</strong> Sin CAE (borrador)</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="client">
+    <div class="client-grid">
+      <div class="line"><strong>Cliente:</strong> {{ venta.cliente.nombre_completo if venta.cliente else 'Consumidor Final' }}</div>
+      <div class="line"><strong>Condición IVA:</strong> {{ venta.cliente.condicion_iva if venta.cliente else 'CF' }}</div>
+      <div class="line"><strong>CUIT/DNI:</strong> {{ venta.cliente.cuit if venta.cliente and venta.cliente.cuit else 'No informado' }}</div>
+      <div class="line"><strong>Domicilio:</strong> {{ venta.cliente.direccion if venta.cliente and venta.cliente.direccion else 'No informado' }}</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Descripción</th>
+        <th class="text-center">Cant.</th>
+        <th class="text-right">Precio Unit.</th>
+        <th class="text-center">Bonif. %</th>
+        <th class="text-center">IVA %</th>
+        <th class="text-right">Subtotal</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in venta.items %}
+      <tr>
+        <td>{{ item.codigo or '—' }}</td>
+        <td>{{ item.descripcion }}</td>
+        <td class="text-center">{{ item.cantidad | int if item.cantidad == item.cantidad | int else "%.2f"|format(item.cantidad) }}</td>
+        <td class="text-right">${{ "%.2f"|format(item.precio_unitario) }}</td>
+        <td class="text-center">{{ "%.2f"|format(item.bonificacion or 0) }}</td>
+        <td class="text-center">{{ "%.2f"|format(item.alicuota_iva or 0) }}</td>
+        <td class="text-right">${{ "%.2f"|format(item.subtotal) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="tax">
+    <div class="tax-title">Discriminación de IVA</div>
+    {% for alicuota, datos in iva_breakdown.items() | sort %}
+    <div class="totals-row">
+      <span>Neto {{ "%.2f"|format(alicuota) }}%</span>
+      <span>${{ "%.2f"|format(datos.neto) }}</span>
+    </div>
+    <div class="totals-row">
+      <span>IVA {{ "%.2f"|format(alicuota) }}%</span>
+      <span>${{ "%.2f"|format(datos.iva) }}</span>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="totals">
+    <div class="totals-row">
+      <span>Importe neto gravado:</span>
+      <strong>${{ "%.2f"|format(venta.subtotal) }}</strong>
+    </div>
+    <div class="totals-row">
+      <span>IVA:</span>
+      <strong>${{ "%.2f"|format(venta.iva_total or 0) }}</strong>
+    </div>
+    <div class="totals-row total">
+      <span>IMPORTE TOTAL:</span>
+      <span>${{ "%.2f"|format(venta.total) }}</span>
+    </div>
+  </div>
+
+  <div class="cae">
+    <div>
+      <strong>CAE:</strong> {{ venta.cae or 'Pendiente de emisión' }}
+    </div>
+    <div>
+      <strong>Vto. CAE:</strong>
+      {{ venta.fecha_vencimiento_cae.strftime('%d/%m/%Y') if venta.fecha_vencimiento_cae else '—' }}
+    </div>
+  </div>
+
+  {% if qr_afip %}
+  <div class="qr">
+    <img src="data:image/png;base64,{{ qr_afip.png_b64 }}" alt="QR AFIP">
+    <div>
+      <div><strong>Código QR AFIP</strong></div>
+      <div class="small">Escaneá este código para validar el comprobante electrónico.</div>
+      <div class="small">URL: {{ qr_afip.url }}</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="footer">
+    Comprobante generado por Sistema de Gestión. Verifique datos del emisor antes de emitir en producción.
+  </div>
+</div>
+</body>
+</html>

@@ -46,7 +46,7 @@
       <div class="form-card mb-3">
         <div class="section-title">Datos del Comprobante</div>
         <div class="row g-3">
-          <div class="col-sm-3">
+          <div class="col-sm-3 factura-only" id="col-punto-venta">
             <label class="form-label fw-semibold">Punto de Venta</label>
             <input type="number" name="punto_venta" class="form-control" value="1" min="1" max="9999">
           </div>
@@ -76,19 +76,19 @@
               <option value="">— Mostrador (sin cliente) —</option>
               {% for c in clientes %}
               <option value="{{ c.id }}"
-                      data-cuit="{{ c.cuit or '' }}"
                       data-dir="{{ c.direccion or '' }}"
+                      data-cuit="{{ c.cuit or '' }}"
                       data-iva="{{ c.condicion_iva or 'CF' }}">
                 {{ c.nombre_completo }}
               </option>
               {% endfor %}
             </select>
           </div>
-          <div class="col-sm-3">
+          <div class="col-sm-3 factura-only" id="col-cuit">
             <label class="form-label fw-semibold">CUIT</label>
             <input type="text" name="cliente_cuit" id="inp-cuit" class="form-control" placeholder="20-12345678-9">
           </div>
-          <div class="col-sm-3">
+          <div class="col-sm-3 factura-only" id="col-cond-iva">
             <label class="form-label fw-semibold">Condición IVA</label>
             <select name="cliente_condicion_iva" id="sel-cond-iva" class="form-select">
               <option value="CF">Consumidor Final</option>
@@ -134,8 +134,8 @@
             <label class="form-label small fw-semibold">Cant.</label>
             <input type="number" id="sel-cant" class="form-control form-control-sm" value="1" min="1" step="0.01">
           </div>
-          <div class="col-sm-2">
-            <label class="form-label small fw-semibold">IVA %</label>
+          <div class="col-sm-2 factura-only" id="col-alicuota-quick">
+            <label class="form-label small fw-semibold" id="lbl-alicuota">IVA %</label>
             <select id="sel-alicuota" class="form-select form-select-sm">
               {% for tasa, label in alicuotas %}
               <option value="{{ tasa }}" {% if tasa == 21.0 %}selected{% endif %}>{{ label }}</option>
@@ -168,11 +168,11 @@
                 <th>Descripción</th>
                 <th style="width:60px" class="text-center">Cant.</th>
                 <th style="width:60px">Unidad</th>
-                <th style="width:90px" class="text-end">P.Unit. Neto</th>
+                <th style="width:90px" class="text-end" id="th-precio">P.Unit.</th>
                 <th style="width:65px" class="text-center">Bonif.%</th>
-                <th style="width:90px" class="text-end">Subtotal Neto</th>
-                <th style="width:70px" class="text-center">IVA %</th>
-                <th style="width:90px" class="text-end">Subtotal c/IVA</th>
+                <th style="width:90px" class="text-end" id="th-subtotal">Subtotal</th>
+                <th style="width:70px" class="text-center factura-only" id="th-iva">IVA %</th>
+                <th style="width:90px" class="text-end factura-only" id="th-total-linea">Subtotal c/IVA</th>
                 <th style="width:30px"></th>
               </tr>
             </thead>
@@ -191,19 +191,19 @@
     <!-- ── Right column: summary ── -->
     <div class="col-lg-4">
       <div class="form-card sticky-top" style="top:80px">
-        <div class="section-title">Resumen</div>
+        <div class="section-title" id="resumen-title">Resumen</div>
 
         <!-- IVA breakdown -->
         <table class="table table-sm mb-0" id="resumen-iva">
-          <tbody id="iva-rows">
+          <tbody id="iva-rows" class="factura-only">
             <!-- populated by JS -->
           </tbody>
           <tfoot>
             <tr class="table-light">
-              <td class="fw-semibold">Neto gravado:</td>
+              <td class="fw-semibold" id="lbl-res-neto">Neto gravado:</td>
               <td class="text-end fw-semibold" id="res-neto">$0.00</td>
             </tr>
-            <tr>
+            <tr class="factura-only" id="row-res-iva">
               <td class="text-muted">IVA total:</td>
               <td class="text-end text-muted" id="res-iva">$0.00</td>
             </tr>
@@ -243,6 +243,10 @@
 const productos = {{ productos | tojson }};
 const servicios = {{ servicios | tojson }};
 
+function esFacturaActual() {
+  return document.querySelector('input[name="tipo_comprobante"]:checked').value === 'FACTURA';
+}
+
 // ── Update tipo-card selection ──
 document.querySelectorAll('input[name="tipo_comprobante"]').forEach(radio => {
   radio.addEventListener('change', () => {
@@ -253,9 +257,40 @@ document.querySelectorAll('input[name="tipo_comprobante"]').forEach(radio => {
 });
 
 function onTipoChange() {
-  const tipo = document.querySelector('input[name="tipo_comprobante"]:checked').value;
+  const esFactura = esFacturaActual();
   const warn = document.getElementById('factura-warning');
-  warn.classList.toggle('d-none', tipo !== 'FACTURA');
+  warn.classList.toggle('d-none', !esFactura);
+
+  document.querySelectorAll('.factura-only').forEach(el => {
+    el.classList.toggle('d-none', !esFactura);
+  });
+
+  document.getElementById('resumen-title').textContent = esFactura ? 'Resumen' : 'Resumen de la Nota de Venta';
+  document.getElementById('lbl-res-neto').textContent = esFactura ? 'Neto gravado:' : 'Subtotal:';
+  document.getElementById('th-precio').textContent = esFactura ? 'P.Unit. Neto' : 'P.Unit. Venta';
+  document.getElementById('th-subtotal').textContent = esFactura ? 'Subtotal Neto' : 'Subtotal';
+
+  const puntoVenta = document.querySelector('[name="punto_venta"]');
+  if (puntoVenta) puntoVenta.disabled = !esFactura;
+
+  const clienteCuit = document.getElementById('inp-cuit');
+  const condicionIva = document.getElementById('sel-cond-iva');
+  clienteCuit.disabled = !esFactura;
+  condicionIva.disabled = !esFactura;
+
+  const selAlicuota = document.getElementById('sel-alicuota');
+  selAlicuota.disabled = !esFactura;
+  if (!esFactura) {
+    selAlicuota.value = '0';
+  } else if (!selAlicuota.value || selAlicuota.value === '0') {
+    selAlicuota.value = '21.0';
+  }
+
+  document.querySelectorAll('#items-body tr[id^="row-"]').forEach(tr => {
+    calcRow(tr.id.replace('row-', ''));
+  });
+
+  calcTotal();
 }
 
 // ── Cliente autofill ──
@@ -345,7 +380,9 @@ function agregarItem() {
   const unidad = opt.dataset.unidad || 'unidad';
   const nombre = opt.dataset.nombre || opt.textContent.split(' — ')[0];
   const cant = parseFloat(document.getElementById('sel-cant').value) || 1;
-  const alicuota = parseFloat(document.getElementById('sel-alicuota').value) || 21;
+  const alicuota = esFacturaActual()
+    ? (parseFloat(document.getElementById('sel-alicuota').value) || 21)
+    : 0;
 
   document.getElementById('empty-row')?.remove();
   const tbody = document.getElementById('items-body');
@@ -377,14 +414,14 @@ function agregarItem() {
              value="0" min="0" max="100" step="0.01" style="width:65px" data-row="${rowId}" onchange="calcRow(${rowId})">
     </td>
     <td class="text-end" id="sub-neto-${rowId}">$${(precio*cant).toFixed(2)}</td>
-    <td class="text-center">
-      <select name="item_alicuota[]" class="form-select form-select-sm" style="width:75px" data-row="${rowId}" onchange="calcRow(${rowId})">
+    <td class="text-center factura-only ${!esFacturaActual() ? 'd-none' : ''}" id="cell-iva-${rowId}">
+      <select name="item_alicuota[]" class="form-select form-select-sm" style="width:75px" data-row="${rowId}" onchange="calcRow(${rowId})" ${!esFacturaActual() ? 'disabled' : ''}>
         {% for tasa, lbl in alicuotas %}
         <option value="{{ tasa }}" ${alicuota === {{ tasa }} ? 'selected' : ''}>{{ lbl }}</option>
         {% endfor %}
       </select>
     </td>
-    <td class="text-end fw-semibold" id="sub-total-${rowId}">$${(precio*cant*(1+alicuota/100)).toFixed(2)}</td>
+    <td class="text-end fw-semibold factura-only ${!esFacturaActual() ? 'd-none' : ''}" id="sub-total-${rowId}">$${(precio*cant*(1+alicuota/100)).toFixed(2)}</td>
     <td>
       <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="quitarItem(${rowId})">
         <i class="bi bi-x"></i>
@@ -397,17 +434,31 @@ function agregarItem() {
 function calcRow(rowId) {
   const tr = document.getElementById('row-' + rowId);
   if (!tr) return;
+  const esFactura = esFacturaActual();
   const cant = parseFloat(tr.querySelector('[name="item_cantidad[]"]').value) || 0;
   const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
   const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
-  const alicuota = parseFloat(tr.querySelector('[name="item_alicuota[]"]').value) || 0;
+  const alicuotaInput = tr.querySelector('[name="item_alicuota[]"]');
+  const alicuota = esFactura ? (parseFloat(alicuotaInput.value) || 0) : 0;
 
   const precioBonif = precio * (1 - bonif / 100);
   const subNeto = precioBonif * cant;
-  const subTotal = subNeto * (1 + alicuota / 100);
+  const subTotal = esFactura ? (subNeto * (1 + alicuota / 100)) : subNeto;
+
+  if (alicuotaInput) {
+    alicuotaInput.disabled = !esFactura;
+    if (!esFactura) alicuotaInput.value = '0';
+  }
+
+  const ivaCell = document.getElementById('cell-iva-' + rowId);
+  const totalCell = document.getElementById('sub-total-' + rowId);
+  ivaCell?.classList.toggle('d-none', !esFactura);
+  totalCell?.classList.toggle('d-none', !esFactura);
 
   document.getElementById('sub-neto-' + rowId).textContent = '$' + subNeto.toFixed(2);
-  document.getElementById('sub-total-' + rowId).textContent = '$' + subTotal.toFixed(2);
+  if (totalCell) {
+    totalCell.textContent = '$' + subTotal.toFixed(2);
+  }
   calcTotal();
 }
 
@@ -423,6 +474,7 @@ function quitarItem(rowId) {
 function calcTotal() {
   // Gather per-row data
   const rows = document.querySelectorAll('#items-body tr[id^="row-"]');
+  const esFactura = esFacturaActual();
   const ivaMap = {};
   let totalNeto = 0, totalIva = 0;
 
@@ -431,10 +483,11 @@ function calcTotal() {
     const cant = parseFloat(tr.querySelector('[name="item_cantidad[]"]').value) || 0;
     const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
     const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
-    const alicuota = parseFloat(tr.querySelector('[name="item_alicuota[]"]').value) || 0;
+    const alicuotaInput = tr.querySelector('[name="item_alicuota[]"]');
+    const alicuota = esFactura ? (parseFloat(alicuotaInput?.value) || 0) : 0;
     const precioBonif = precio * (1 - bonif / 100);
     const subNeto = precioBonif * cant;
-    const ivaMonto = subNeto * alicuota / 100;
+    const ivaMonto = esFactura ? (subNeto * alicuota / 100) : 0;
 
     totalNeto += subNeto;
     totalIva += ivaMonto;
@@ -447,19 +500,21 @@ function calcTotal() {
   // Update IVA breakdown
   const ivaRows = document.getElementById('iva-rows');
   ivaRows.innerHTML = '';
-  Object.entries(ivaMap).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])).forEach(([alicuota, data]) => {
-    if (data.neto > 0 || data.iva > 0) {
-      ivaRows.innerHTML += `
-        <tr>
-          <td class="text-muted small">Neto ${alicuota}%:</td>
-          <td class="text-end small">$${data.neto.toFixed(2)}</td>
-        </tr>
-        <tr>
-          <td class="text-muted small ps-3">IVA ${alicuota}%:</td>
-          <td class="text-end small text-primary">$${data.iva.toFixed(2)}</td>
-        </tr>`;
-    }
-  });
+  if (esFactura) {
+    Object.entries(ivaMap).sort((a, b) => parseFloat(a[0]) - parseFloat(b[0])).forEach(([alicuota, data]) => {
+      if (data.neto > 0 || data.iva > 0) {
+        ivaRows.innerHTML += `
+          <tr>
+            <td class="text-muted small">Neto ${alicuota}%:</td>
+            <td class="text-end small">$${data.neto.toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td class="text-muted small ps-3">IVA ${alicuota}%:</td>
+            <td class="text-end small text-primary">$${data.iva.toFixed(2)}</td>
+          </tr>`;
+      }
+    });
+  }
 
   document.getElementById('res-neto').textContent = '$' + totalNeto.toFixed(2);
   document.getElementById('res-iva').textContent = '$' + totalIva.toFixed(2);
@@ -467,5 +522,7 @@ function calcTotal() {
 
   document.getElementById('btn-confirmar').disabled = rows.length === 0;
 }
+
+onTipoChange();
 </script>
 {% endblock %}

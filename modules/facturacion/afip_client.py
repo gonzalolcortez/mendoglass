@@ -8,10 +8,12 @@ certificados no están configuradas el cliente opera en modo HOMOLOGACIÓN
 certificados reales.
 
 Variables de entorno esperadas:
-    AFIP_CUIT          CUIT del emisor (sin guiones, p.ej. 20123456789)
-    AFIP_CERT          Contenido PEM del certificado X.509
-    AFIP_KEY           Contenido PEM de la clave privada
-    AFIP_PROD          "true" para producción; cualquier otro valor = homo
+    ARCA_CUIT / AFIP_CUIT              CUIT del emisor (sin guiones)
+    ARCA_CERT / AFIP_CERT              Contenido PEM del certificado X.509
+    ARCA_KEY / AFIP_KEY                Contenido PEM de la clave privada
+    ARCA_CERT_PATH / AFIP_CERT_PATH    Ruta a archivo .crt/.pem (opcional)
+    ARCA_KEY_PATH / AFIP_KEY_PATH      Ruta a archivo .key/.pem (opcional)
+    ARCA_PROD / AFIP_PROD              "true" para producción; otro valor = homo
 
 Referencia AFIP:
     https://www.afip.gob.ar/fe/documentos/manual_desarrollador_COMPG_v2_9.pdf
@@ -20,7 +22,13 @@ Referencia AFIP:
 import os
 import logging
 import tempfile
+import urllib.error
+import urllib.request
+import xml.etree.ElementTree as ET
+from pathlib import Path
+import re
 from datetime import datetime
+from html import unescape
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +63,25 @@ class AfipError(Exception):
     """Excepción genérica para errores devueltos por ARCA/AFIP."""
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _certs_dir() -> Path:
+    return _repo_root() / 'certs'
+
+
+def _env_first(*names: str) -> str:
+    """Devuelve la primera variable de entorno no vacía."""
+    for name in names:
+        value = os.environ.get(name, '').strip()
+        if value:
+            return value
+    return ''
+
+
 def _es_produccion() -> bool:
-    return os.environ.get('AFIP_PROD', '').lower() == 'true'
+    return _env_first('ARCA_PROD', 'AFIP_PROD').lower() == 'true'
 
 
 def _wsdl_wsaa() -> str:
@@ -67,15 +92,96 @@ def _wsdl_wsfe() -> str:
     return _WSFE_WSDL_PROD if _es_produccion() else _WSFE_WSDL_HOMO
 
 
-def _cert_key_paths():
-    """Escribe cert y clave a archivos temporales y devuelve sus rutas.
+def _normalizar_pem(valor: str) -> str:
+    """Normaliza PEM cuando llega con saltos escapados (\\n)."""
+    return valor.replace('\\n', '\n') if '\\n' in valor else valor
 
-    Si las variables de entorno no están definidas devuelve (None, None).
-    """
-    cert_pem = os.environ.get('AFIP_CERT', '')
-    key_pem = os.environ.get('AFIP_KEY', '')
-    if not cert_pem or not key_pem:
+
+def _cargar_certificado_x509(cert_path: str):
+    from cryptography import x509  # type: ignore
+
+    data = Path(cert_path).read_bytes()
+    return x509.load_pem_x509_certificate(data)
+
+
+def _extraer_cuit_desde_certificado(cert_path: str) -> str:
+    try:
+        cert = _cargar_certificado_x509(cert_path)
+    except Exception:
+        return ''
+
+    subject = cert.subject.rfc4514_string()
+    match = re.search(r'CUIT\s*(\d{11})', subject)
+    return match.group(1) if match else ''
+
+
+def _cargar_clave_privada(key_path: str):
+    from cryptography.hazmat.primitives import serialization  # type: ignore
+
+    data = Path(key_path).read_bytes()
+    return serialization.load_pem_private_key(data, password=None)
+
+
+def _claves_coinciden(cert_path: str, key_path: str) -> bool:
+    try:
+        cert = _cargar_certificado_x509(cert_path)
+        key = _cargar_clave_privada(key_path)
+        return (
+            cert.public_key().public_numbers()
+            == key.public_key().public_numbers()
+        )
+    except Exception:
+        return False
+
+
+def _autodescubrir_cert_key() -> tuple[str | None, str | None]:
+    certs_dir = _certs_dir()
+    if not certs_dir.exists():
         return None, None
+
+    cert_files = sorted(certs_dir.glob('*.crt'), key=lambda p: p.stat().st_mtime, reverse=True)
+    key_files = sorted(certs_dir.glob('*.key'), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    for cert_file in cert_files:
+        for key_file in key_files:
+            if _claves_coinciden(str(cert_file), str(key_file)):
+                return str(cert_file), str(key_file)
+    return None, None
+
+
+def _cert_key_paths() -> tuple[str | None, str | None, bool]:
+    """Obtiene rutas de certificado y clave para WSAA.
+
+    Prioridad:
+    1) Rutas directas (ARCA_CERT_PATH/ARCA_KEY_PATH o AFIP_*)
+    2) Contenido PEM en variables de entorno (ARCA_CERT/ARCA_KEY o AFIP_*)
+
+    Returns:
+        (cert_path, key_path, temporales)
+    """
+    cert_path = _env_first('ARCA_CERT_PATH', 'AFIP_CERT_PATH')
+    key_path = _env_first('ARCA_KEY_PATH', 'AFIP_KEY_PATH')
+
+    if cert_path and key_path:
+        if not os.path.exists(cert_path):
+            raise AfipError(f'No existe el certificado en {cert_path}')
+        if not os.path.exists(key_path):
+            raise AfipError(f'No existe la clave privada en {key_path}')
+        return cert_path, key_path, False
+
+    auto_cert_path, auto_key_path = _autodescubrir_cert_key()
+    if auto_cert_path and auto_key_path:
+        logger.warning(
+            'Usando certificado y clave autodetectados desde certs/: %s | %s',
+            auto_cert_path,
+            auto_key_path,
+        )
+        return auto_cert_path, auto_key_path, False
+
+    cert_pem = _normalizar_pem(_env_first('ARCA_CERT', 'AFIP_CERT'))
+    key_pem = _normalizar_pem(_env_first('ARCA_KEY', 'AFIP_KEY'))
+    if not cert_pem or not key_pem:
+        return None, None, False
 
     cert_file = tempfile.NamedTemporaryFile(
         mode='w', suffix='.crt', delete=False
@@ -89,7 +195,7 @@ def _cert_key_paths():
     key_file.write(key_pem)
     key_file.close()
 
-    return cert_file.name, key_file.name
+    return cert_file.name, key_file.name, True
 
 
 def _limpiar_archivos(*paths):
@@ -99,6 +205,93 @@ def _limpiar_archivos(*paths):
                 os.unlink(p)
         except OSError:
             pass
+
+
+def _endpoint_desde_wsdl(wsdl_url: str) -> str:
+    return wsdl_url.split('?', 1)[0]
+
+
+def _extraer_token_y_sign(ta_xml: str) -> tuple[str, str]:
+    try:
+        raiz = ET.fromstring(ta_xml)
+    except ET.ParseError as exc:
+        raise AfipError(f'No se pudo parsear el TA devuelto por WSAA: {exc}') from exc
+
+    token = raiz.findtext('.//token') or ''
+    sign = raiz.findtext('.//sign') or ''
+    if not token or not sign:
+        raise AfipError('WSAA devolvió un TA sin token/sign.')
+    return token, sign
+
+
+def _extraer_ta_desde_soap(xml_respuesta: str) -> str:
+    try:
+        raiz = ET.fromstring(xml_respuesta)
+    except ET.ParseError as exc:
+        raise AfipError(f'No se pudo parsear la respuesta SOAP de WSAA: {exc}') from exc
+
+    fault = raiz.find('.//{http://schemas.xmlsoap.org/soap/envelope/}Fault')
+    if fault is not None:
+        faultcode = fault.findtext('faultcode') or 'SOAP Fault'
+        faultstring = fault.findtext('faultstring') or 'Error no informado por WSAA'
+        raise AfipError(f'WSAA rechazó la autenticación ({faultcode}): {faultstring}')
+
+    ta_node = raiz.find('.//{http://wsaa.view.sua.dvadac.desein.afip.gov}loginCmsReturn')
+    if ta_node is None:
+        ta_node = raiz.find('.//loginCmsReturn')
+    if ta_node is None or not (ta_node.text or '').strip():
+        raise AfipError('WSAA no devolvió loginCmsReturn en la respuesta SOAP.')
+
+    return unescape(ta_node.text or '').strip()
+
+
+def _obtener_ta_por_soap_directo(cert_path: str, key_path: str) -> tuple[str, str]:
+    try:
+        from pyafipws.wsaa import WSAA  # type: ignore
+    except ImportError as exc:
+        raise AfipError(
+            'No se pudo importar pyafipws.wsaa para el fallback SOAP directo. '
+            f'Error original: {exc}. '
+            'Instalá dependencias: pyafipws y setuptools.'
+        ) from exc
+
+    wsaa = WSAA()
+    tra = wsaa.CreateTRA('wsfe')
+    cms = wsaa.SignTRA(tra, cert_path, key_path)
+
+    endpoint = _endpoint_desde_wsdl(_wsdl_wsaa())
+    envelope = f'''<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:wsaa="http://wsaa.view.sua.dvadac.desein.afip.gov">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <wsaa:loginCms>
+      <wsaa:in0>{cms}</wsaa:in0>
+    </wsaa:loginCms>
+  </soapenv:Body>
+</soapenv:Envelope>'''.encode('utf-8')
+
+    request = urllib.request.Request(
+        endpoint,
+        data=envelope,
+        headers={
+            'Content-Type': 'text/xml; charset=utf-8',
+            'SOAPAction': '',
+        },
+        method='POST',
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            respuesta_xml = response.read().decode('utf-8')
+    except urllib.error.HTTPError as exc:
+        respuesta_error = exc.read().decode('utf-8', errors='replace')
+        ta_xml = _extraer_ta_desde_soap(respuesta_error)
+        return _extraer_token_y_sign(ta_xml)
+    except Exception as exc:
+        raise AfipError(f'Error llamando WSAA por SOAP directo: {exc}') from exc
+
+    ta_xml = _extraer_ta_desde_soap(respuesta_xml)
+    return _extraer_token_y_sign(ta_xml)
 
 
 # ──────────────────────────────────────────────────────────────
@@ -118,8 +311,9 @@ def _obtener_ta(cert_path: str, key_path: str) -> tuple:
         from pyafipws.wsaa import WSAA  # type: ignore
     except ImportError as exc:
         raise AfipError(
-            'La librería pyafipws no está instalada. '
-            'Ejecutá: pip install pyafipws'
+            'No se pudo importar pyafipws.wsaa. '
+            f'Error original: {exc}. '
+            'Instalá dependencias: pyafipws y setuptools.'
         ) from exc
 
     wsaa = WSAA()
@@ -134,7 +328,11 @@ def _obtener_ta(cert_path: str, key_path: str) -> tuple:
             debug=False,
         )
     except Exception as exc:
-        raise AfipError(f'Error autenticando en WSAA: {exc}') from exc
+        logger.warning(
+            'Fallo autenticacion WSAA via WSDL, reintentando por SOAP directo: %s',
+            exc,
+        )
+        return _obtener_ta_por_soap_directo(cert_path, key_path)
 
     if not ta_xml:
         raise AfipError(
@@ -152,7 +350,20 @@ class AfipClient:
     """Envuelve el ciclo completo de autenticación + emisión de facturas."""
 
     def __init__(self):
-        self.cuit = os.environ.get('AFIP_CUIT', '')
+        self._cuit_source = 'env'
+        self._cert_source = 'env'
+        self._cert_path_used = None
+        self._key_path_used = None
+        self.cuit = _env_first('ARCA_CUIT', 'AFIP_CUIT')
+        if not self.cuit:
+            self._cuit_source = 'auto-cert'
+            cert_path = _env_first('ARCA_CERT_PATH', 'AFIP_CERT_PATH')
+            if cert_path and os.path.exists(cert_path):
+                self.cuit = _extraer_cuit_desde_certificado(cert_path)
+            else:
+                auto_cert_path, _ = _autodescubrir_cert_key()
+                if auto_cert_path:
+                    self.cuit = _extraer_cuit_desde_certificado(auto_cert_path)
         self._token = None
         self._sign = None
         self._wsfe = None
@@ -167,33 +378,70 @@ class AfipClient:
         """
         if not self.cuit:
             raise AfipError(
-                'AFIP_CUIT no configurado. '
+                'CUIT no configurado. '
                 'Definí la variable de entorno con el CUIT del emisor.'
             )
 
-        cert_path, key_path = _cert_key_paths()
+        cert_path, key_path, es_temporal = _cert_key_paths()
         if not cert_path:
             raise AfipError(
                 'Certificado digital no configurado. '
-                'Definí las variables AFIP_CERT y AFIP_KEY.'
+                'Definí ARCA_CERT/ARCA_KEY (o AFIP_*) o ARCA_CERT_PATH/ARCA_KEY_PATH.'
             )
+
+        self._cert_path_used = cert_path
+        self._key_path_used = key_path
+
+        env_cert_path = _env_first('ARCA_CERT_PATH', 'AFIP_CERT_PATH')
+        env_key_path = _env_first('ARCA_KEY_PATH', 'AFIP_KEY_PATH')
+        env_cert_pem = _env_first('ARCA_CERT', 'AFIP_CERT')
+        env_key_pem = _env_first('ARCA_KEY', 'AFIP_KEY')
+        if env_cert_path and env_key_path:
+            self._cert_source = 'env-path'
+        elif env_cert_pem and env_key_pem:
+            self._cert_source = 'env-pem'
+        else:
+            self._cert_source = 'auto-certs-dir'
 
         try:
             self._token, self._sign = _obtener_ta(cert_path, key_path)
         finally:
-            _limpiar_archivos(cert_path, key_path)
+            if es_temporal:
+                _limpiar_archivos(cert_path, key_path)
 
         try:
             from pyafipws.wsfev1 import WSFEv1  # type: ignore
         except ImportError as exc:
-            raise AfipError('pyafipws no está instalada.') from exc
+            raise AfipError(
+                'No se pudo importar pyafipws.wsfev1. '
+                f'Error original: {exc}. '
+                'Instalá dependencias: pyafipws y setuptools.'
+            ) from exc
 
         wsfe = WSFEv1()
-        wsfe.Conectar(wsdl=_wsdl_wsfe(), proxy=None, cacert=None, debug=False)
+        wsfe.Conectar(wsdl=_wsdl_wsfe(), proxy=None, cacert=None)
         wsfe.Cuit = self.cuit
         wsfe.Token = self._token
         wsfe.Sign = self._sign
         self._wsfe = wsfe
+
+    def usa_autodeteccion(self) -> bool:
+        return self._cuit_source != 'env' or self._cert_source == 'auto-certs-dir'
+
+    def mensaje_configuracion(self) -> str | None:
+        if not self.usa_autodeteccion():
+            return None
+
+        partes = []
+        if self._cuit_source == 'auto-cert':
+            partes.append('CUIT detectado automaticamente desde el certificado')
+        if self._cert_source == 'auto-certs-dir':
+            cert_name = Path(self._cert_path_used).name if self._cert_path_used else 'certs/'
+            key_name = Path(self._key_path_used).name if self._key_path_used else 'certs/'
+            partes.append(f'certificado y clave autodetectados ({cert_name} / {key_name})')
+        if not partes:
+            return None
+        return 'ARCA configurado automaticamente: ' + '; '.join(partes) + '.'
 
     def _wsfe_conectado(self):
         if self._wsfe is None:

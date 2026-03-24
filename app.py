@@ -1,9 +1,141 @@
 from flask import Flask, jsonify
 from extensions import db, login_manager
 import os
+import time
+from sqlalchemy import inspect, text
+from sqlalchemy.exc import SQLAlchemyError
+
+
+def _configure_timezone(app):
+    """Configure process timezone, defaulting to Argentina (-03:00)."""
+    tz_name = os.environ.setdefault('TZ', 'America/Argentina/Buenos_Aires')
+    app.config['APP_TIMEZONE'] = tz_name
+
+    # tzset is available on Unix platforms (Render/Linux).
+    try:
+        time.tzset()
+    except AttributeError:
+        app.logger.warning('tzset is not available on this platform; TZ=%s', tz_name)
+
+
+def _ensure_ventas_columns(app):
+    """Ensure legacy DBs have the columns required by the current Venta model."""
+    dialect = db.engine.dialect.name
+    bool_true = 'TRUE' if dialect == 'postgresql' else '1'
+
+    required_columns = {
+        'tipo_comprobante': "VARCHAR(20) NOT NULL DEFAULT 'NOTA_VENTA'",
+        'punto_venta': 'INTEGER NOT NULL DEFAULT 1',
+        'numero_comprobante': 'INTEGER',
+        'subtotal': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'iva_total': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'descuento': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'total': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'pagado': f'BOOLEAN NOT NULL DEFAULT {bool_true}',
+        'forma_pago': "VARCHAR(50) DEFAULT 'efectivo'",
+        'tipo_cbte_afip': 'INTEGER',
+        'cae': 'VARCHAR(20)',
+        'fecha_vencimiento_cae': 'DATE',
+        'notas': 'TEXT',
+        'created_at': 'TIMESTAMP',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('ventas'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('ventas')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE ventas ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing ventas columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
+
+
+def _ensure_clientes_columns(app):
+    """Ensure legacy DBs have the columns required by the current Cliente model."""
+    required_columns = {
+        'cuit': 'VARCHAR(20)',
+        'condicion_iva': "VARCHAR(10) DEFAULT 'CF'",
+        'notas': 'TEXT',
+        'created_at': 'TIMESTAMP',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('clientes'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('clientes')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE clientes ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing clientes columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
+
+
+def _ensure_venta_items_columns(app):
+    """Ensure legacy DBs have the columns required by the current VentaItem model."""
+    required_columns = {
+        'tipo': "VARCHAR(10) NOT NULL DEFAULT 'producto'",
+        'servicio_id': 'INTEGER',
+        'codigo': 'VARCHAR(50)',
+        'descripcion_libre': 'VARCHAR(300)',
+        'unidad': "VARCHAR(20) NOT NULL DEFAULT 'unidad'",
+        'bonificacion': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+        'alicuota_iva': 'DOUBLE PRECISION NOT NULL DEFAULT 21',
+        'subtotal_neto': 'DOUBLE PRECISION NOT NULL DEFAULT 0',
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('venta_items'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('venta_items')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE venta_items ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing venta_items columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
 
 def create_app():
     app = Flask(__name__)
+    _configure_timezone(app)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
     database_url = os.environ.get('DATABASE_URL', 'sqlite:///sistema.db')
@@ -32,6 +164,7 @@ def create_app():
     from routes.ventas import ventas_bp
     from routes.dashboard import dashboard_bp
     from routes.tecnicos import tecnicos_bp
+    from routes.whatsapp import whatsapp_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -43,14 +176,24 @@ def create_app():
     app.register_blueprint(contabilidad_bp, url_prefix='/contabilidad')
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
+    app.register_blueprint(whatsapp_bp)
+
+    with app.app_context():
+        try:
+            _init_db_with_retry(app, retries=5, delay=3)
+        except Exception as e:
+            app.logger.error('Database init skipped during startup: %s', e)
+
+        try:
+            _ensure_ventas_columns(app)
+            _ensure_clientes_columns(app)
+            _ensure_venta_items_columns(app)
+        except SQLAlchemyError as e:
+            app.logger.error('Could not apply runtime schema patch: %s', e)
 
     @app.route('/health')
     def health():
         return jsonify({"status": "ok"}), 200
-
-    # 🔥 IMPORTANTE: NO inicializar DB al arrancar en Render
-    # with app.app_context():
-    #     _init_db_with_retry(app)
 
     return app
 
@@ -71,7 +214,6 @@ def _init_db_with_retry(app, retries=5, delay=3):
                 raise
             app.logger.warning(f"Database not ready (attempt {attempt}/{retries}): {e}. Retrying in {delay}s...")
             time.sleep(delay)
-
 
 def _seed_default_user():
     from models import Usuario

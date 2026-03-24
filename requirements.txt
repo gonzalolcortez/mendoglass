@@ -3,12 +3,14 @@ Flask-SQLAlchemy==3.1.1
 Flask-Login==0.6.3
 SQLAlchemy==2.0.23
 Werkzeug==3.0.1
+setuptools>=69
 gunicorn
 psycopg2-binary==2.9.10
 requests==2.32.3
 reportlab==4.2.5
 qrcode==7.4.2
 Pillow==12.1.1
+twilio==9.3.6
 # pyafipws: the PyPI releases (2.7.x) are Python 2 only and incompatible with this
 # project.  The repository has no stable Python 3 release tags, so we pin to the
 # specific commit that matches the installed version (3.12.3145) to ensure

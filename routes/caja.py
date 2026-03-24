@@ -76,7 +76,7 @@ def nuevo():
             monto=float(request.form['monto']),
             referencia_tipo='manual',
             notas=request.form.get('notas', '').strip(),
-            fecha=datetime.utcnow(),
+            fecha=datetime.now(),
         )
         db.session.add(mov)
         db.session.commit()

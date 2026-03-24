@@ -83,8 +83,89 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 |---|---|---|
 | `DATABASE_URL` | URI de conexión a la base de datos | `postgresql://user:password@localhost:5432/sistema` |
 | `SECRET_KEY` | Clave secreta de Flask | `cambiar-en-produccion` |
+| `ARCA_CUIT` | CUIT emisor para factura electrónica | `20123456789` |
+| `ARCA_CERT` | Certificado PEM (texto completo) | `-----BEGIN CERTIFICATE-----...` |
+| `ARCA_KEY` | Clave privada PEM (texto completo) | `-----BEGIN PRIVATE KEY-----...` |
+| `ARCA_CERT_PATH` | Ruta al archivo de certificado (alternativa a `ARCA_CERT`) | `/etc/arca/cert.pem` |
+| `ARCA_KEY_PATH` | Ruta al archivo de clave (alternativa a `ARCA_KEY`) | `/etc/arca/key.pem` |
+| `ARCA_PROD` | `true` producción, otro valor homologación | `false` |
+| `FACTURA_EMISOR_RAZON_SOCIAL` | Razón social para impresión de factura | `URITIC SAS` |
+| `FACTURA_EMISOR_DIRECCION` | Domicilio comercial impreso en factura | `Av. Siempre Viva 123` |
+| `FACTURA_EMISOR_CONDICION_IVA` | Condición fiscal del emisor en factura | `Responsable Inscripto` |
+| `FACTURA_EMISOR_IIBB` | Número de Ingresos Brutos en factura | `901-123456-7` |
+| `FACTURA_EMISOR_INICIO_ACTIVIDADES` | Fecha de inicio de actividades en factura | `01/01/2020` |
+| `FACTURA_EMISOR_TELEFONO` | Teléfono del emisor en factura | `+54 11 5555-5555` |
+| `FACTURA_EMISOR_EMAIL` | Email del emisor en factura | `admin@empresa.com` |
 
 > Si `DATABASE_URL` no está definida, la app usa SQLite (`instance/sistema.db`) como base de datos local.
+
+> Compatibilidad: también se aceptan las variables históricas `AFIP_*`.
+
+### Facturación electrónica ARCA (WSFEv1)
+
+1. Configurá `ARCA_CUIT` y los certificados (`ARCA_CERT` + `ARCA_KEY` o `ARCA_CERT_PATH` + `ARCA_KEY_PATH`).
+2. Para pruebas usá homologación (`ARCA_PROD=false`).
+3. Para producción usá `ARCA_PROD=true` y certificados válidos en producción.
+4. Al registrar una venta con tipo `FACTURA`, el sistema solicita CAE automáticamente y guarda CAE + vencimiento.
+5. Desde el detalle de la venta podés usar **Imprimir factura** para generar el comprobante fiscal con datos del emisor/cliente y QR AFIP.
+
+### Preflight ARCA / WSFEv1
+
+Para validar autenticación y conectividad con ARCA sin emitir comprobantes:
+
+```bash
+ARCA_CUIT=30718185854 \
+ARCA_CERT_PATH="/ruta/al/certificado.crt" \
+ARCA_KEY_PATH="/ruta/a/la/clave.key" \
+ARCA_PROD=true \
+python scripts/arca_preflight.py --tipo-cbte 6 --punto-vta 1
+```
+
+Si la configuración es correcta, el script devuelve `AUTH_OK=true` y el último número autorizado para ese tipo de comprobante y punto de venta.
+
+### Emisión mínima controlada
+
+Para previsualizar una factura mínima sin emitirla:
+
+```bash
+ARCA_CUIT=30718185854 \
+ARCA_CERT_PATH="/ruta/al/certificado.crt" \
+ARCA_KEY_PATH="/ruta/a/la/clave.key" \
+ARCA_PROD=true \
+python scripts/arca_emitir_minima.py --tipo-cbte 6 --punto-vta 1 --importe-total 1.00
+```
+
+Para emitir realmente, el script exige confirmación explícita:
+
+```bash
+ARCA_CUIT=30718185854 \
+ARCA_CERT_PATH="/ruta/al/certificado.crt" \
+ARCA_KEY_PATH="/ruta/a/la/clave.key" \
+ARCA_PROD=true \
+python scripts/arca_emitir_minima.py --tipo-cbte 6 --punto-vta 1 --importe-total 1.00 --emitir --confirmacion EMITIR
+```
+
+### Consulta de puntos de venta ARCA
+
+Para listar los puntos de venta que WSFE informa como habilitados:
+
+```bash
+ARCA_CUIT=30718185854 \
+ARCA_CERT_PATH="/ruta/al/certificado.crt" \
+ARCA_KEY_PATH="/ruta/a/la/clave.key" \
+ARCA_PROD=true \
+python scripts/arca_puntos_venta.py --tipo-cbte 6
+```
+
+Para además sondear un rango de puntos de venta con `CompUltimoAutorizado`:
+
+```bash
+ARCA_CUIT=30718185854 \
+ARCA_CERT_PATH="/ruta/al/certificado.crt" \
+ARCA_KEY_PATH="/ruta/a/la/clave.key" \
+ARCA_PROD=true \
+python scripts/arca_puntos_venta.py --tipo-cbte 6 --scan-desde 1 --scan-hasta 20
+```
 
 ---
 

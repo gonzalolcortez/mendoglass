@@ -55,6 +55,11 @@
         {% else %}—{% endif %}
       </td>
       <td class="text-end">
+        {% if v.tipo_comprobante == 'FACTURA' %}
+        <a href="{{ url_for('ventas.imprimir', id=v.id) }}" target="_blank" class="btn btn-sm btn-outline-secondary py-0 px-2 me-1" title="Imprimir factura">
+          <i class="bi bi-printer"></i>
+        </a>
+        {% endif %}
         <a href="{{ url_for('ventas.detalle', id=v.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2 me-1">
           <i class="bi bi-eye"></i>
         </a>
