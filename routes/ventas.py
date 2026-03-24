@@ -90,15 +90,28 @@ def _datos_emisor_factura() -> dict:
         except Exception:
             cuit_raw = ''
 
-    cuit = cuit_raw if cuit_raw else 'No configurado'
+    cuit_digits = ''.join(ch for ch in cuit_raw if ch.isdigit())
+    defaults = {}
+    if cuit_digits == '30718185854':
+        defaults = {
+            'razon_social': 'URITIC S. A. S.',
+            'direccion': 'San Juan 721, Ciudad, Mendoza',
+            'condicion_iva': 'Responsable Inscripto',
+            'ingresos_brutos': '0951886',
+            'inicio_actividades': '01/07/2023',
+            'telefono': '+54 9 261 723-4524',
+            'email': 'info@uritic.com.ar',
+        }
+
+    cuit = cuit_digits if cuit_digits else 'No configurado'
     return {
-        'razon_social': _env_first('FACTURA_EMISOR_RAZON_SOCIAL', 'ARCA_RAZON_SOCIAL', 'EMPRESA_NOMBRE') or 'Emisor no configurado',
-        'direccion': _env_first('FACTURA_EMISOR_DIRECCION', 'EMPRESA_DIRECCION') or 'Dirección no configurada',
-        'condicion_iva': _env_first('FACTURA_EMISOR_CONDICION_IVA', 'EMPRESA_CONDICION_IVA') or 'Responsable Inscripto',
-        'ingresos_brutos': _env_first('FACTURA_EMISOR_IIBB', 'EMPRESA_IIBB') or 'No informado',
-        'inicio_actividades': _env_first('FACTURA_EMISOR_INICIO_ACTIVIDADES', 'EMPRESA_INICIO_ACTIVIDADES') or 'No informado',
-        'telefono': _env_first('FACTURA_EMISOR_TELEFONO', 'EMPRESA_TELEFONO') or '',
-        'email': _env_first('FACTURA_EMISOR_EMAIL', 'EMPRESA_EMAIL') or '',
+        'razon_social': _env_first('FACTURA_EMISOR_RAZON_SOCIAL', 'ARCA_RAZON_SOCIAL', 'EMPRESA_NOMBRE') or defaults.get('razon_social') or 'Emisor no configurado',
+        'direccion': _env_first('FACTURA_EMISOR_DIRECCION', 'EMPRESA_DIRECCION') or defaults.get('direccion') or 'Dirección no configurada',
+        'condicion_iva': _env_first('FACTURA_EMISOR_CONDICION_IVA', 'EMPRESA_CONDICION_IVA') or defaults.get('condicion_iva') or 'Responsable Inscripto',
+        'ingresos_brutos': _env_first('FACTURA_EMISOR_IIBB', 'EMPRESA_IIBB') or defaults.get('ingresos_brutos') or 'No informado',
+        'inicio_actividades': _env_first('FACTURA_EMISOR_INICIO_ACTIVIDADES', 'EMPRESA_INICIO_ACTIVIDADES') or defaults.get('inicio_actividades') or 'No informado',
+        'telefono': _env_first('FACTURA_EMISOR_TELEFONO', 'EMPRESA_TELEFONO') or defaults.get('telefono') or '',
+        'email': _env_first('FACTURA_EMISOR_EMAIL', 'EMPRESA_EMAIL') or defaults.get('email') or '',
         'cuit': cuit,
     }
 
