@@ -171,6 +171,11 @@ class Taller(db.Model):
         return sum(p.cantidad * p.precio_unitario for p in self.productos_usados)
 
     @property
+    def total_egreso_repuestos(self):
+        # Egreso real por costo de compra de los repuestos utilizados en la orden.
+        return sum((p.cantidad or 0) * ((p.producto.precio_compra or 0) if p.producto else 0) for p in self.productos_usados)
+
+    @property
     def total_servicios(self):
         return sum(s.precio for s in self.servicios_usados)
 
