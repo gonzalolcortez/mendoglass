@@ -11,3 +11,11 @@ services:
         value: "false"
       - key: TZ
         value: "America/Argentina/Buenos_Aires"
+      - key: ARCA_CUIT
+        value: "30718185854"
+      - key: ARCA_CERT_PATH
+        value: "/opt/render/project/src/certs/URITIC SAS _703774b9a9652253.crt"
+      - key: ARCA_KEY_PATH
+        value: "/opt/render/project/src/certs/arca-homo-20260324-154804.key"
+      - key: ARCA_PROD
+        value: "true"
