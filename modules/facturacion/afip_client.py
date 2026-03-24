@@ -25,6 +25,8 @@ import tempfile
 import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
+from pathlib import Path
+import re
 from datetime import datetime
 from html import unescape
 
@@ -61,6 +63,14 @@ class AfipError(Exception):
     """Excepción genérica para errores devueltos por ARCA/AFIP."""
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _certs_dir() -> Path:
+    return _repo_root() / 'certs'
+
+
 def _env_first(*names: str) -> str:
     """Devuelve la primera variable de entorno no vacía."""
     for name in names:
@@ -87,6 +97,58 @@ def _normalizar_pem(valor: str) -> str:
     return valor.replace('\\n', '\n') if '\\n' in valor else valor
 
 
+def _cargar_certificado_x509(cert_path: str):
+    from cryptography import x509  # type: ignore
+
+    data = Path(cert_path).read_bytes()
+    return x509.load_pem_x509_certificate(data)
+
+
+def _extraer_cuit_desde_certificado(cert_path: str) -> str:
+    try:
+        cert = _cargar_certificado_x509(cert_path)
+    except Exception:
+        return ''
+
+    subject = cert.subject.rfc4514_string()
+    match = re.search(r'CUIT\s*(\d{11})', subject)
+    return match.group(1) if match else ''
+
+
+def _cargar_clave_privada(key_path: str):
+    from cryptography.hazmat.primitives import serialization  # type: ignore
+
+    data = Path(key_path).read_bytes()
+    return serialization.load_pem_private_key(data, password=None)
+
+
+def _claves_coinciden(cert_path: str, key_path: str) -> bool:
+    try:
+        cert = _cargar_certificado_x509(cert_path)
+        key = _cargar_clave_privada(key_path)
+        return (
+            cert.public_key().public_numbers()
+            == key.public_key().public_numbers()
+        )
+    except Exception:
+        return False
+
+
+def _autodescubrir_cert_key() -> tuple[str | None, str | None]:
+    certs_dir = _certs_dir()
+    if not certs_dir.exists():
+        return None, None
+
+    cert_files = sorted(certs_dir.glob('*.crt'), key=lambda p: p.stat().st_mtime, reverse=True)
+    key_files = sorted(certs_dir.glob('*.key'), key=lambda p: p.stat().st_mtime, reverse=True)
+
+    for cert_file in cert_files:
+        for key_file in key_files:
+            if _claves_coinciden(str(cert_file), str(key_file)):
+                return str(cert_file), str(key_file)
+    return None, None
+
+
 def _cert_key_paths() -> tuple[str | None, str | None, bool]:
     """Obtiene rutas de certificado y clave para WSAA.
 
@@ -106,6 +168,15 @@ def _cert_key_paths() -> tuple[str | None, str | None, bool]:
         if not os.path.exists(key_path):
             raise AfipError(f'No existe la clave privada en {key_path}')
         return cert_path, key_path, False
+
+    auto_cert_path, auto_key_path = _autodescubrir_cert_key()
+    if auto_cert_path and auto_key_path:
+        logger.warning(
+            'Usando certificado y clave autodetectados desde certs/: %s | %s',
+            auto_cert_path,
+            auto_key_path,
+        )
+        return auto_cert_path, auto_key_path, False
 
     cert_pem = _normalizar_pem(_env_first('ARCA_CERT', 'AFIP_CERT'))
     key_pem = _normalizar_pem(_env_first('ARCA_KEY', 'AFIP_KEY'))
@@ -279,7 +350,20 @@ class AfipClient:
     """Envuelve el ciclo completo de autenticación + emisión de facturas."""
 
     def __init__(self):
+        self._cuit_source = 'env'
+        self._cert_source = 'env'
+        self._cert_path_used = None
+        self._key_path_used = None
         self.cuit = _env_first('ARCA_CUIT', 'AFIP_CUIT')
+        if not self.cuit:
+            self._cuit_source = 'auto-cert'
+            cert_path = _env_first('ARCA_CERT_PATH', 'AFIP_CERT_PATH')
+            if cert_path and os.path.exists(cert_path):
+                self.cuit = _extraer_cuit_desde_certificado(cert_path)
+            else:
+                auto_cert_path, _ = _autodescubrir_cert_key()
+                if auto_cert_path:
+                    self.cuit = _extraer_cuit_desde_certificado(auto_cert_path)
         self._token = None
         self._sign = None
         self._wsfe = None
@@ -305,6 +389,20 @@ class AfipClient:
                 'Definí ARCA_CERT/ARCA_KEY (o AFIP_*) o ARCA_CERT_PATH/ARCA_KEY_PATH.'
             )
 
+        self._cert_path_used = cert_path
+        self._key_path_used = key_path
+
+        env_cert_path = _env_first('ARCA_CERT_PATH', 'AFIP_CERT_PATH')
+        env_key_path = _env_first('ARCA_KEY_PATH', 'AFIP_KEY_PATH')
+        env_cert_pem = _env_first('ARCA_CERT', 'AFIP_CERT')
+        env_key_pem = _env_first('ARCA_KEY', 'AFIP_KEY')
+        if env_cert_path and env_key_path:
+            self._cert_source = 'env-path'
+        elif env_cert_pem and env_key_pem:
+            self._cert_source = 'env-pem'
+        else:
+            self._cert_source = 'auto-certs-dir'
+
         try:
             self._token, self._sign = _obtener_ta(cert_path, key_path)
         finally:
@@ -326,6 +424,24 @@ class AfipClient:
         wsfe.Token = self._token
         wsfe.Sign = self._sign
         self._wsfe = wsfe
+
+    def usa_autodeteccion(self) -> bool:
+        return self._cuit_source != 'env' or self._cert_source == 'auto-certs-dir'
+
+    def mensaje_configuracion(self) -> str | None:
+        if not self.usa_autodeteccion():
+            return None
+
+        partes = []
+        if self._cuit_source == 'auto-cert':
+            partes.append('CUIT detectado automaticamente desde el certificado')
+        if self._cert_source == 'auto-certs-dir':
+            cert_name = Path(self._cert_path_used).name if self._cert_path_used else 'certs/'
+            key_name = Path(self._key_path_used).name if self._key_path_used else 'certs/'
+            partes.append(f'certificado y clave autodetectados ({cert_name} / {key_name})')
+        if not partes:
+            return None
+        return 'ARCA configurado automaticamente: ' + '; '.join(partes) + '.'
 
     def _wsfe_conectado(self):
         if self._wsfe is None:

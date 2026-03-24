@@ -130,6 +130,7 @@ def _emitir_ante_afip(venta: Venta):
         venta.fecha_vencimiento_cae = None
 
     db.session.commit()
+    return afip.mensaje_configuracion()
 
 
 def _parse_items_from_form():
@@ -334,12 +335,14 @@ def guardar():
     # AFIP emission for FACTURA
     if tipo_comprobante == 'FACTURA':
         try:
-            _emitir_ante_afip(venta)
+            mensaje_config = _emitir_ante_afip(venta)
             flash(
                 f'Factura emitida exitosamente. '
                 f'N° {venta.numero_display} | CAE: {venta.cae}',
                 'success',
             )
+            if mensaje_config:
+                flash(mensaje_config, 'info')
         except Exception as exc:
             flash(
                 f'Venta guardada pero la emisión ante ARCA falló: {exc}. '
@@ -389,8 +392,10 @@ def emitir(id):
         flash('Esta factura ya tiene CAE asignado.', 'info')
         return redirect(url_for('ventas.detalle', id=id))
     try:
-        _emitir_ante_afip(venta)
+        mensaje_config = _emitir_ante_afip(venta)
         flash(f'Factura emitida. CAE: {venta.cae}', 'success')
+        if mensaje_config:
+            flash(mensaje_config, 'info')
     except Exception as exc:
         flash(f'Error al emitir: {exc}', 'danger')
     return redirect(url_for('ventas.detalle', id=id))
