@@ -1,6 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
 from models import db, Producto
+from sqlalchemy.orm import joinedload
 
 stock_bp = Blueprint('stock', __name__)
 
@@ -9,11 +10,11 @@ stock_bp = Blueprint('stock', __name__)
 @login_required
 def index():
     filtro = request.args.get('filtro', 'todos')
-    query = Producto.query.filter_by(activo=True)
+    query = Producto.query.options(joinedload(Producto.categoria)).filter_by(activo=True)
     if filtro == 'bajo':
-        productos = [p for p in query.all() if p.stock_actual <= p.stock_minimo]
+        productos = query.filter(Producto.stock_actual <= Producto.stock_minimo).order_by(Producto.nombre).all()
     elif filtro == 'ok':
-        productos = [p for p in query.all() if p.stock_actual > p.stock_minimo]
+        productos = query.filter(Producto.stock_actual > Producto.stock_minimo).order_by(Producto.nombre).all()
     else:
         productos = query.order_by(Producto.nombre).all()
     total_compra = sum(p.stock_actual * p.precio_compra for p in productos)

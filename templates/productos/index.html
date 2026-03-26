@@ -136,7 +136,7 @@
         {% for c in categorias %}
         <tr>
           <td>{{ c.nombre }}</td>
-          <td><span class="badge bg-secondary">{{ c.productos|length }}</span></td>
+          <td><span class="badge bg-secondary">{{ categorias_count.get(c.id, 0) }}</span></td>
           <td class="text-end">
             <form method="post" action="{{ url_for('productos.eliminar_categoria', id=c.id) }}" class="d-inline"
                   onsubmit="return confirm('¿Eliminar?')">

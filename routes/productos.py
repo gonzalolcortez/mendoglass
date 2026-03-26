@@ -3,6 +3,8 @@ from flask_login import login_required
 from models import (db, Producto, Servicio, Categoria, Proveedor,
                     IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO)
 from datetime import datetime
+from sqlalchemy.orm import joinedload
+from sqlalchemy import func
 
 productos_bp = Blueprint('productos', __name__)
 
@@ -14,7 +16,7 @@ def index():
     q = request.args.get('q', '').strip()
     categoria_id = request.args.get('categoria_id', '')
 
-    productos_query = Producto.query
+    productos_query = Producto.query.options(joinedload(Producto.categoria))
     if q:
         productos_query = productos_query.filter(Producto.nombre.ilike(f'%{q}%'))
     if categoria_id:
@@ -26,8 +28,15 @@ def index():
 
     servicios = Servicio.query.order_by(Servicio.nombre).all()
     categorias = Categoria.query.order_by(Categoria.nombre).all()
+    categorias_count = {}
+    if categorias:
+        rows = (db.session.query(Producto.categoria_id, func.count(Producto.id))
+                .group_by(Producto.categoria_id)
+                .all())
+        categorias_count = {cid: cnt for cid, cnt in rows if cid is not None}
     return render_template('productos/index.html', productos=productos, servicios=servicios,
-                           categorias=categorias, tab=tab, q=q, categoria_id=categoria_id)
+                           categorias=categorias, categorias_count=categorias_count,
+                           tab=tab, q=q, categoria_id=categoria_id)
 
 
 # ── Categorías ──────────────────────────────────────────────────────────────

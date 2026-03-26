@@ -28,7 +28,7 @@
     <thead>
       <tr>
         <th>#</th><th>Cliente</th><th>Equipo</th><th>Problema</th>
-        <th>Ingreso</th><th>Estado</th><th>Total</th><th></th>
+        <th>Ingreso</th><th>Estado</th><th>Total</th><th>Egreso Repuesto</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -47,6 +47,7 @@
       <td class="small">{{ t.fecha_ingreso.strftime('%d/%m/%Y') }}</td>
       <td><span class="badge badge-{{ t.estado }}">{{ t.estado_display }}</span></td>
       <td class="fw-semibold">${{ "%.2f"|format(t.total_final) }}</td>
+      <td class="text-danger fw-semibold">${{ "%.2f"|format(t.total_egreso_repuestos) }}</td>
       <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a></td>
     </tr>
     {% endfor %}

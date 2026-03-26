@@ -96,6 +96,7 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 | `FACTURA_EMISOR_INICIO_ACTIVIDADES` | Fecha de inicio de actividades en factura | `01/01/2020` |
 | `FACTURA_EMISOR_TELEFONO` | Teléfono del emisor en factura | `+54 11 5555-5555` |
 | `FACTURA_EMISOR_EMAIL` | Email del emisor en factura | `admin@empresa.com` |
+| `PERF_REQUEST_METRICS` | Habilita métricas por request en headers (`X-Perf-*`) y logs | `true` |
 
 > Si `DATABASE_URL` no está definida, la app usa SQLite (`instance/sistema.db`) como base de datos local.
 

@@ -1,8 +1,9 @@
 from flask import Blueprint, render_template, request
 from flask_login import login_required
-from models import db, MovimientoCaja, CUENTAS_CAJA
+from models import db, MovimientoCaja, CUENTAS_CAJA, Taller
 from datetime import datetime
 from sqlalchemy import func, extract
+from types import SimpleNamespace
 
 contabilidad_bp = Blueprint('contabilidad', __name__)
 
@@ -90,6 +91,30 @@ def detalle_cuenta(cuenta):
 
     movimientos = MovimientoCaja.query.filter_by(cuenta=cuenta)\
         .order_by(MovimientoCaja.fecha.asc()).all()
+
+    # En Servicio Técnico, sumar como egreso el costo de compra de repuestos usados.
+    if cuenta == 'servicio_tecnico':
+        talleres = Taller.query.order_by(Taller.fecha_ingreso.asc()).all()
+        egresos_repuestos = []
+        for taller in talleres:
+            total_egreso_repuestos = sum(
+                (tp.cantidad or 0) * ((tp.producto.precio_compra or 0) if tp.producto else 0)
+                for tp in taller.productos_usados
+            )
+            if total_egreso_repuestos <= 0:
+                continue
+
+            egresos_repuestos.append(SimpleNamespace(
+                fecha=taller.fecha_ingreso or taller.created_at or datetime.utcnow(),
+                concepto=f'Egreso repuestos Orden #{taller.numero} - {taller.cliente.nombre_completo}',
+                tipo='egreso',
+                monto=total_egreso_repuestos,
+                referencia_tipo='taller',
+                referencia_id=taller.id,
+            ))
+
+        movimientos.extend(egresos_repuestos)
+        movimientos.sort(key=lambda m: m.fecha)
 
     # Calcular saldo progresivo
     saldo = 0.0

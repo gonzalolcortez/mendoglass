@@ -10,6 +10,7 @@ from models import (
     MovimientoCaja, FORMAS_PAGO, Categoria,
 )
 from datetime import datetime, date
+from sqlalchemy.orm import joinedload
 
 ventas_bp = Blueprint('ventas', __name__)
 
@@ -282,7 +283,7 @@ def _parse_items_from_form():
 @ventas_bp.route('/listado')
 @login_required
 def index():
-    ventas = Venta.query.order_by(Venta.fecha.desc()).all()
+    ventas = Venta.query.options(joinedload(Venta.cliente)).order_by(Venta.fecha.desc()).all()
     return render_template('ventas/index.html', ventas=ventas)
 
 
