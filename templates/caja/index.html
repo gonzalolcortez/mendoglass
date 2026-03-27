@@ -55,20 +55,40 @@
     {% for fp_val, fp_label in formas_pago %}
     {% set saldo = saldos_fp.get(fp_val, 0) %}
     <div class="col-6 col-sm-3">
-      <div class="border rounded p-2 text-center h-100">
-        <div class="small text-muted fw-semibold">{{ fp_label }}</div>
-        <div class="fw-bold fs-6 {% if saldo >= 0 %}text-success{% else %}text-danger{% endif %}">
-          ${{ "%.2f"|format(saldo) }}
+      <a href="{{ url_for('caja.index', forma_pago=fp_val) }}" class="text-decoration-none">
+        <div class="border rounded p-2 text-center h-100 {% if forma_pago_filter == fp_val %}border-primary shadow-sm{% endif %}" style="cursor:pointer;transition:box-shadow .15s;" onmouseover="this.classList.add('shadow')" onmouseout="this.classList.remove('shadow')">
+          <div class="small fw-semibold {% if forma_pago_filter == fp_val %}text-primary{% else %}text-muted{% endif %}">{{ fp_label }}</div>
+          <div class="fw-bold fs-6 {% if saldo >= 0 %}text-success{% else %}text-danger{% endif %}">
+            ${{ "%.2f"|format(saldo) }}
+          </div>
+          <div class="text-muted" style="font-size:.65rem">Ver movimientos</div>
         </div>
-      </div>
+      </a>
     </div>
     {% endfor %}
   </div>
+  {% if forma_pago_filter %}
+  <div class="mt-2">
+    <a href="{{ url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x-circle me-1"></i>Mostrar todas las formas de pago
+    </a>
+  </div>
+  {% endif %}
 </div>
 
 <!-- Filtros -->
 <div class="form-card mb-3">
+  {% if forma_pago_filter %}
+  <div class="mb-2">
+    <span class="badge" style="background:#e0e7ff;color:#3730a3;font-size:.85rem">
+      <i class="bi bi-funnel-fill me-1"></i>Filtrando por: {{ dict(formas_pago).get(forma_pago_filter, forma_pago_filter) }}
+    </span>
+  </div>
+  {% endif %}
   <form method="get" class="row g-2 align-items-end">
+    {% if forma_pago_filter %}
+    <input type="hidden" name="forma_pago" value="{{ forma_pago_filter }}">
+    {% endif %}
     <div class="col-sm-3">
       <label class="form-label small fw-semibold">Desde</label>
       <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ fecha_desde }}">
@@ -87,13 +107,26 @@
     </div>
     <div class="col-sm-3 d-flex gap-2">
       <button class="btn btn-sm btn-secondary"><i class="bi bi-funnel"></i> Filtrar</button>
-      <a href="{{ url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+      <a href="{{ url_for('caja.index', forma_pago=forma_pago_filter) if forma_pago_filter else url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar fechas</a>
     </div>
   </form>
 </div>
 
 <!-- Tabla movimientos -->
 <div class="table-card">
+  {% if forma_pago_filter %}
+  <div class="px-3 pt-2 pb-1 border-bottom">
+    <span class="fw-semibold">Movimientos — {{ dict(formas_pago).get(forma_pago_filter, forma_pago_filter) }}</span>
+    {% if fecha_desde or fecha_hasta %}
+    <span class="text-muted small ms-2">
+      {% if fecha_desde %}desde {{ fecha_desde }}{% endif %}
+      {% if fecha_hasta %} hasta {{ fecha_hasta }}{% endif %}
+    </span>
+    {% else %}
+    <span class="text-muted small ms-2">(todos los movimientos)</span>
+    {% endif %}
+  </div>
+  {% endif %}
   {% if movimientos %}
   <table class="table table-hover">
     <thead>

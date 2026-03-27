@@ -11,8 +11,16 @@ caja_bp = Blueprint('caja', __name__)
 @login_required
 def index():
     today = date.today().strftime('%Y-%m-%d')
-    fecha_desde = request.args.get('fecha_desde', today)
-    fecha_hasta = request.args.get('fecha_hasta', today)
+    forma_pago_filter = request.args.get('forma_pago', '')
+
+    # Si se filtra por forma de pago desde las tarjetas, no aplicar fecha por defecto
+    if forma_pago_filter:
+        fecha_desde = request.args.get('fecha_desde', '')
+        fecha_hasta = request.args.get('fecha_hasta', '')
+    else:
+        fecha_desde = request.args.get('fecha_desde', today)
+        fecha_hasta = request.args.get('fecha_hasta', today)
+
     tipo = request.args.get('tipo', '')
 
     query = MovimientoCaja.query
@@ -29,6 +37,8 @@ def index():
             pass
     if tipo in ('ingreso', 'egreso'):
         query = query.filter_by(tipo=tipo)
+    if forma_pago_filter:
+        query = query.filter_by(forma_pago=forma_pago_filter)
 
     movimientos = query.order_by(MovimientoCaja.fecha.desc()).all()
 
@@ -61,6 +71,7 @@ def index():
                            fecha_desde=fecha_desde,
                            fecha_hasta=fecha_hasta,
                            tipo=tipo,
+                           forma_pago_filter=forma_pago_filter,
                            saldos_fp=saldos_fp,
                            formas_pago=FORMAS_PAGO,
                            cuentas_caja=CUENTAS_CAJA)
