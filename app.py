@@ -6,6 +6,35 @@ from sqlalchemy import inspect, text, event
 from sqlalchemy.exc import SQLAlchemyError
 
 
+def _load_local_instance_env(app):
+    """Load local-only environment vars from instance/local.env if present.
+
+    This file is intended for developer machines and is ignored by git.
+    Existing environment variables are never overridden.
+    """
+    local_env_path = os.path.join(app.instance_path, 'local.env')
+    if not os.path.exists(local_env_path):
+        return
+
+    try:
+        with open(local_env_path, 'r', encoding='utf-8') as f:
+            for raw_line in f:
+                line = raw_line.strip()
+                if not line or line.startswith('#') or '=' not in line:
+                    continue
+                key, value = line.split('=', 1)
+                key = key.strip()
+                value = value.strip()
+                if (value.startswith('"') and value.endswith('"')) or (
+                    value.startswith("'") and value.endswith("'")
+                ):
+                    value = value[1:-1]
+                if key:
+                    os.environ.setdefault(key, value)
+    except OSError as exc:
+        app.logger.warning('Could not read local env file %s: %s', local_env_path, exc)
+
+
 def _configure_timezone(app):
     """Configure process timezone, defaulting to Argentina (-03:00)."""
     tz_name = os.environ.setdefault('TZ', 'America/Argentina/Buenos_Aires')
@@ -132,6 +161,56 @@ def _ensure_venta_items_columns(app):
     )
 
 
+def _ensure_cuenta_corriente_indexes(app):
+    """Ensure indexes exist for the heaviest current-account queries."""
+    statements = [
+        'CREATE INDEX IF NOT EXISTS ix_clientes_cc_cliente_fecha ON clientes_cuenta_corriente (cliente_id, fecha)',
+        'CREATE INDEX IF NOT EXISTS ix_proveedores_cc_proveedor_fecha ON proveedores_cuenta_corriente (proveedor_id, fecha)',
+        'CREATE INDEX IF NOT EXISTS ix_tecnicos_cc_tecnico_fecha ON tecnicos_cuenta_corriente (tecnico_id, fecha)',
+    ]
+
+    with db.engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement))
+
+    app.logger.info('Verified current-account indexes for customer and supplier movement tables.')
+
+
+def _ensure_cuenta_corriente_columns(app):
+    required_by_table = {
+        'clientes_cuenta_corriente': {
+            'cuenta': "VARCHAR(50) DEFAULT 'otro'",
+        },
+        'proveedores_cuenta_corriente': {
+            'cuenta': "VARCHAR(50) DEFAULT 'otro'",
+        },
+    }
+
+    inspector = inspect(db.engine)
+    for table_name, columns in required_by_table.items():
+        if not inspector.has_table(table_name):
+            continue
+
+        existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
+        missing_columns = [
+            (name, ddl)
+            for name, ddl in columns.items()
+            if name not in existing_columns
+        ]
+        if not missing_columns:
+            continue
+
+        with db.engine.begin() as conn:
+            for column_name, column_ddl in missing_columns:
+                conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_ddl}'))
+
+        app.logger.warning(
+            'Schema patched on startup: added missing %s columns: %s',
+            table_name,
+            ', '.join(name for name, _ in missing_columns),
+        )
+
+
 def _install_request_metrics(app):
     """Install optional per-request performance metrics for profiling."""
     if not app.config.get('PERF_REQUEST_METRICS', False):
@@ -189,6 +268,7 @@ def _install_request_metrics(app):
 
 def create_app():
     app = Flask(__name__)
+    _load_local_instance_env(app)
     _configure_timezone(app)
     app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
@@ -203,7 +283,7 @@ def create_app():
     db.init_app(app)
     login_manager.init_app(app)
 
-    from models import Usuario
+    from models import Usuario, sincronizar_movimientos_contables_automaticos
 
     @login_manager.user_loader
     def load_user(user_id):
@@ -219,7 +299,6 @@ def create_app():
     from routes.ventas import ventas_bp
     from routes.dashboard import dashboard_bp
     from routes.tecnicos import tecnicos_bp
-    from routes.whatsapp import whatsapp_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -231,7 +310,6 @@ def create_app():
     app.register_blueprint(contabilidad_bp, url_prefix='/contabilidad')
     app.register_blueprint(ventas_bp, url_prefix='/ventas')
     app.register_blueprint(tecnicos_bp, url_prefix='/tecnicos')
-    app.register_blueprint(whatsapp_bp)
 
     with app.app_context():
         try:
@@ -245,6 +323,9 @@ def create_app():
             _ensure_ventas_columns(app)
             _ensure_clientes_columns(app)
             _ensure_venta_items_columns(app)
+            _ensure_cuenta_corriente_columns(app)
+            _ensure_cuenta_corriente_indexes(app)
+            sincronizar_movimientos_contables_automaticos()
         except SQLAlchemyError as e:
             app.logger.error('Could not apply runtime schema patch: %s', e)
 

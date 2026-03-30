@@ -43,7 +43,7 @@
   {% if tab == 'clientes' %}
     {% if clientes %}
     <table class="table table-hover">
-      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Talleres</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Cuenta Corriente</th><th>Talleres</th><th></th></tr></thead>
       <tbody>
       {% for c in clientes %}
       <tr>
@@ -51,6 +51,15 @@
         <td class="fw-semibold">{{ c.nombre_completo }}</td>
         <td>{{ c.telefono or '—' }}</td>
         <td>{{ c.email or '—' }}</td>
+        <td>
+          {% if c.saldo_cc > 0 %}
+          <span class="badge bg-danger">Debe ${{ '%.2f'|format(c.saldo_cc) }}</span>
+          {% elif c.saldo_cc < 0 %}
+          <span class="badge bg-success">A favor ${{ '%.2f'|format((-1) * c.saldo_cc) }}</span>
+          {% else %}
+          <span class="badge bg-secondary">$0.00</span>
+          {% endif %}
+        </td>
         <td><span class="badge bg-secondary">{{ talleres_count.get(c.id, 0) }}</span></td>
         <td class="text-end">
           <a href="{{ url_for('clientes.detalle', id=c.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>
@@ -70,7 +79,7 @@
   {% elif tab == 'proveedores' %}
     {% if proveedores %}
     <table class="table table-hover">
-      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Ingresos</th><th></th></tr></thead>
+      <thead><tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Cuenta Corriente</th><th>Ingresos</th><th></th></tr></thead>
       <tbody>
       {% for p in proveedores %}
       <tr>
@@ -78,6 +87,15 @@
         <td class="fw-semibold">{{ p.nombre_completo }}</td>
         <td>{{ p.telefono or '—' }}</td>
         <td>{{ p.email or '—' }}</td>
+        <td>
+          {% if p.saldo_cc > 0 %}
+          <span class="badge bg-danger">Debemos ${{ '%.2f'|format(p.saldo_cc) }}</span>
+          {% elif p.saldo_cc < 0 %}
+          <span class="badge bg-success">A favor ${{ '%.2f'|format((-1) * p.saldo_cc) }}</span>
+          {% else %}
+          <span class="badge bg-secondary">$0.00</span>
+          {% endif %}
+        </td>
         <td><span class="badge bg-secondary">{{ ingresos_count.get(p.id, 0) }}</span></td>
         <td class="text-end">
           <a href="{{ url_for('clientes.detalle_proveedor', id=p.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">Ver</a>

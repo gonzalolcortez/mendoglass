@@ -13,7 +13,7 @@
   {% if tecnicos %}
   <table class="table table-hover">
     <thead>
-      <tr><th>Nombre</th><th>Tipo</th><th>Empresa</th><th>Estado</th><th></th></tr>
+      <tr><th>Nombre</th><th>Tipo</th><th>Empresa</th><th>Cuenta Corriente</th><th>Estado</th><th></th></tr>
     </thead>
     <tbody>
     {% for t in tecnicos %}
@@ -28,10 +28,22 @@
       </td>
       <td>{{ t.empresa_tercerizado or '—' }}</td>
       <td>
+        {% if t.saldo_cc > 0 %}
+        <span class="badge bg-danger">Debe ${{ '%.2f'|format(t.saldo_cc) }}</span>
+        {% elif t.saldo_cc < 0 %}
+        <span class="badge bg-success">A favor ${{ '%.2f'|format((-1) * t.saldo_cc) }}</span>
+        {% else %}
+        <span class="badge bg-secondary">$0.00</span>
+        {% endif %}
+      </td>
+      <td>
         {% if t.activo %}<span class="badge bg-success">Activo</span>
         {% else %}<span class="badge bg-secondary">Inactivo</span>{% endif %}
       </td>
       <td class="text-end">
+        <a href="{{ url_for('tecnicos.detalle', id=t.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">
+          <i class="bi bi-eye"></i>
+        </a>
         <a href="{{ url_for('tecnicos.editar', id=t.id) }}" class="btn btn-sm btn-outline-primary py-0 px-2">
           <i class="bi bi-pencil"></i>
         </a>

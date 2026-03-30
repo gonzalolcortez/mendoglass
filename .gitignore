@@ -8,7 +8,14 @@ pedido.csr
 __pycache__/
 *.py[cod]
 *.pyo
+venv/
+.venv/
 
 # Flask / SQLite
 instance/
 *.db
+
+# Local environment files
+.env
+.env.*
+*.env.local

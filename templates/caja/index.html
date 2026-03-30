@@ -55,7 +55,7 @@
     {% for fp_val, fp_label in formas_pago %}
     {% set saldo = saldos_fp.get(fp_val, 0) %}
     <div class="col-6 col-sm-3">
-      <a href="{{ url_for('caja.index', forma_pago=fp_val) }}" class="text-decoration-none">
+      <a href="{{ url_for('caja.index', forma_pago=fp_val, referencia=referencia_filter) }}" class="text-decoration-none">
         <div class="border rounded p-2 text-center h-100 {% if forma_pago_filter == fp_val %}border-primary shadow-sm{% endif %}" style="cursor:pointer;transition:box-shadow .15s;" onmouseover="this.classList.add('shadow')" onmouseout="this.classList.remove('shadow')">
           <div class="small fw-semibold {% if forma_pago_filter == fp_val %}text-primary{% else %}text-muted{% endif %}">{{ fp_label }}</div>
           <div class="fw-bold fs-6 {% if saldo >= 0 %}text-success{% else %}text-danger{% endif %}">
@@ -69,11 +69,22 @@
   </div>
   {% if forma_pago_filter %}
   <div class="mt-2">
-    <a href="{{ url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">
+    <a href="{{ url_for('caja.index', referencia=referencia_filter) }}" class="btn btn-sm btn-outline-secondary">
       <i class="bi bi-x-circle me-1"></i>Mostrar todas las formas de pago
     </a>
   </div>
   {% endif %}
+
+  <div class="mt-3 d-flex flex-wrap gap-2">
+    <a href="{{ url_for('caja.index', referencia='tecnico_cc', forma_pago=forma_pago_filter) }}" class="btn btn-sm {% if referencia_filter == 'tecnico_cc' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+      <i class="bi bi-person-gear me-1"></i>Solo movimientos de Técnicos
+    </a>
+    {% if referencia_filter == 'tecnico_cc' %}
+    <a href="{{ url_for('caja.index', forma_pago=forma_pago_filter) }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-x-circle me-1"></i>Quitar filtro de Técnicos
+    </a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Filtros -->
@@ -85,9 +96,19 @@
     </span>
   </div>
   {% endif %}
+  {% if referencia_filter == 'tecnico_cc' %}
+  <div class="mb-2">
+    <span class="badge" style="background:#cffafe;color:#0f766e;font-size:.85rem">
+      <i class="bi bi-person-gear me-1"></i>Solo movimientos automáticos de técnicos
+    </span>
+  </div>
+  {% endif %}
   <form method="get" class="row g-2 align-items-end">
     {% if forma_pago_filter %}
     <input type="hidden" name="forma_pago" value="{{ forma_pago_filter }}">
+    {% endif %}
+    {% if referencia_filter %}
+    <input type="hidden" name="referencia" value="{{ referencia_filter }}">
     {% endif %}
     <div class="col-sm-3">
       <label class="form-label small fw-semibold">Desde</label>
@@ -107,16 +128,20 @@
     </div>
     <div class="col-sm-3 d-flex gap-2">
       <button class="btn btn-sm btn-secondary"><i class="bi bi-funnel"></i> Filtrar</button>
-      <a href="{{ url_for('caja.index', forma_pago=forma_pago_filter) if forma_pago_filter else url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar fechas</a>
+      <a href="{{ url_for('caja.index', forma_pago=forma_pago_filter, referencia=referencia_filter) if forma_pago_filter or referencia_filter else url_for('caja.index') }}" class="btn btn-sm btn-outline-secondary">Limpiar fechas</a>
     </div>
   </form>
 </div>
 
 <!-- Tabla movimientos -->
 <div class="table-card">
-  {% if forma_pago_filter %}
+  {% if forma_pago_filter or referencia_filter == 'tecnico_cc' %}
   <div class="px-3 pt-2 pb-1 border-bottom">
-    <span class="fw-semibold">Movimientos — {{ dict(formas_pago).get(forma_pago_filter, forma_pago_filter) }}</span>
+    <span class="fw-semibold">
+      Movimientos
+      {% if forma_pago_filter %}— {{ dict(formas_pago).get(forma_pago_filter, forma_pago_filter) }}{% endif %}
+      {% if referencia_filter == 'tecnico_cc' %}— Técnicos{% endif %}
+    </span>
     {% if fecha_desde or fecha_hasta %}
     <span class="text-muted small ms-2">
       {% if fecha_desde %}desde {{ fecha_desde }}{% endif %}
@@ -150,6 +175,10 @@
           </a>
         {% elif m.referencia_tipo == 'venta' %}
           <span class="small"><i class="bi bi-cart me-1"></i>Venta #{{ m.referencia_id }}</span>
+        {% elif m.referencia_tipo == 'tecnico_cc' %}
+          <a href="{{ url_for('tecnicos.detalle', id=m.referencia_id) }}" class="text-decoration-none small">
+            <i class="bi bi-person-gear me-1"></i>Técnico #{{ m.referencia_id }}
+          </a>
         {% else %}
           <span class="small text-muted">{{ dict(cuentas_caja).get(m.cuenta or 'otro', m.cuenta or '—') }}</span>
         {% endif %}
@@ -160,7 +189,7 @@
         {% if m.tipo == 'egreso' %}-{% endif %}${{ "%.2f"|format(m.monto) }}
       </td>
       <td>
-        {% if m.referencia_tipo not in ['taller', 'venta'] %}
+        {% if m.referencia_tipo not in ['taller', 'venta', 'tecnico_cc'] %}
         <form method="post" action="{{ url_for('caja.eliminar', id=m.id) }}"
               onsubmit="return confirm('¿Eliminar movimiento?')">
           <button class="btn btn-sm btn-outline-danger py-0 px-1"><i class="bi bi-trash"></i></button>

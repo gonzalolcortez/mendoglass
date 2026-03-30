@@ -33,6 +33,42 @@
       <div class="text-muted small">{{ cliente.notas }}</div>
       {% endif %}
     </div>
+
+    <div class="form-card mt-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fw-semibold"><i class="bi bi-journal-text me-1"></i>Cuenta Corriente</span>
+        {% if cliente.saldo_cc > 0 %}
+        <span class="badge bg-danger">Debe ${{ '%.2f'|format(cliente.saldo_cc) }}</span>
+        {% elif cliente.saldo_cc < 0 %}
+        <span class="badge bg-success">A favor ${{ '%.2f'|format((-1) * cliente.saldo_cc) }}</span>
+        {% else %}
+        <span class="badge bg-secondary">Saldo $0.00</span>
+        {% endif %}
+      </div>
+      <form method="post" action="{{ url_for('clientes.registrar_pago_cc', id=cliente.id) }}" class="row g-2">
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Monto</label>
+          <input type="number" step="0.01" min="0.01" name="monto" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Forma de pago</label>
+          <select name="forma_pago" class="form-select form-select-sm" required>
+            {% for val, label in formas_pago_cc %}
+            <option value="{{ val }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold">Concepto</label>
+          <input type="text" name="concepto" class="form-control form-control-sm" placeholder="Pago de cuenta corriente">
+        </div>
+        <div class="col-12">
+          <button class="btn btn-sm btn-success w-100">
+            <i class="bi bi-cash-coin me-1"></i>Registrar Pago
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
   <div class="col-lg-8">
     <!-- Talleres -->
@@ -92,6 +128,35 @@
       </table>
       {% else %}
       <div class="p-3 text-muted text-center small">Sin ventas registradas.</div>
+      {% endif %}
+    </div>
+
+    <div class="table-card mt-3">
+      <div class="p-3 border-bottom fw-semibold"><i class="bi bi-clock-history me-1"></i>Movimientos de Cuenta Corriente</div>
+      {% if movimientos_cc %}
+      <table class="table table-hover">
+        <thead><tr><th>Fecha</th><th>Concepto</th><th>Tipo</th><th class="text-end">Monto</th></tr></thead>
+        <tbody>
+        {% for m in movimientos_cc %}
+        <tr>
+          <td>{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ m.concepto }}</td>
+          <td>
+            {% if m.tipo == 'cargo' %}
+            <span class="badge bg-danger">Cargo</span>
+            {% else %}
+            <span class="badge bg-success">Abono</span>
+            {% endif %}
+          </td>
+          <td class="text-end fw-semibold {% if m.tipo == 'cargo' %}text-danger{% else %}text-success{% endif %}">
+            {% if m.tipo == 'cargo' %}+{% else %}-{% endif %}${{ '%.2f'|format(m.monto) }}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin movimientos de cuenta corriente.</div>
       {% endif %}
     </div>
   </div>

@@ -1,13 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto, Servicio, MovimientoCaja, Tecnico, FORMAS_PAGO, CUENTAS_CAJA, Categoria
+from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto, Servicio, MovimientoCaja, Tecnico, FORMAS_PAGO, CUENTAS_CAJA, Categoria, registrar_movimiento_cuenta_corriente, obtener_totales_taller_por_cuenta
 from datetime import datetime
-import logging
-from twilio_whatsapp import enviar_whatsapp
 from sqlalchemy.orm import joinedload, selectinload
 
 taller_bp = Blueprint('taller', __name__)
-logger = logging.getLogger(__name__)
 
 ESTADOS = [
     ('recibido', 'Recibido'),
@@ -87,28 +84,6 @@ def nuevo():
         )
         db.session.add(taller)
         db.session.commit()
-
-        # Send WhatsApp notification to the client
-        try:
-            cliente = taller.cliente
-            if cliente and cliente.telefono:
-                equipo_parts = [p for p in [taller.tipo_equipo, taller.marca, taller.modelo] if p]
-                equipo = " ".join(equipo_parts) if equipo_parts else "Sin especificar"
-                mensaje = (
-                    f"🔧 Servicio Técnico\n\n"
-                    f"Hola {cliente.nombre_completo}\n\n"
-                    f"Su equipo fue recibido correctamente.\n\n"
-                    f"📋 Orden: #{taller.numero}\n"
-                    f"📱 Equipo: {equipo}\n"
-                    f"🛠 Problema: {taller.descripcion_problema}\n\n"
-                    f"Estado: En diagnóstico\n\n"
-                    f"Gracias por confiar en nosotros."
-                )
-                enviar_whatsapp(cliente.telefono, mensaje)
-            else:
-                logger.info('[Twilio WhatsApp] Cliente sin teléfono. Orden #%s', taller.numero)
-        except Exception as exc:
-            logger.exception('[Twilio WhatsApp] Falló notificación para orden #%s: %s', taller.numero, exc)
 
         flash(f'Orden de taller #{taller.numero} creada correctamente.', 'success')
         return redirect(url_for('taller.detalle', id=taller.id))
@@ -236,30 +211,41 @@ def entregar(id):
         return redirect(url_for('taller.detalle', id=id))
 
     forma_pago = request.form.get('forma_pago', 'efectivo')
+    totales_por_cuenta = obtener_totales_taller_por_cuenta(taller)
     taller.estado = 'entregado'
     taller.forma_pago = forma_pago
     taller.fecha_entrega = datetime.now()
 
     if forma_pago == 'cuenta_corriente':
         taller.pagado = False
+        for cuenta, monto in totales_por_cuenta.items():
+            registrar_movimiento_cuenta_corriente(
+                cliente_id=taller.cliente_id,
+                tipo='cargo',
+                monto=monto,
+                concepto=f'Reparación #{taller.numero}',
+                cuenta=cuenta,
+                referencia_tipo='taller',
+                referencia_id=taller.id,
+                fecha=datetime.now(),
+            )
         db.session.commit()
         flash(f'Orden #{taller.numero} entregada en cuenta corriente. La deuda queda pendiente de cobro.', 'warning')
     else:
         taller.pagado = True
-        monto = taller.total_final
-        mov = MovimientoCaja(
-            tipo='ingreso',
-            cuenta='servicio_tecnico',
-            forma_pago=forma_pago,
-            concepto=f'Reparación #{taller.numero} - {taller.cliente.nombre_completo}',
-            monto=monto,
-            referencia_tipo='taller',
-            referencia_id=taller.id,
-            fecha=datetime.now(),
-        )
-        db.session.add(mov)
+        for cuenta, monto in totales_por_cuenta.items():
+            db.session.add(MovimientoCaja(
+                tipo='ingreso',
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=f'Reparación #{taller.numero} - {taller.cliente.nombre_completo}',
+                monto=monto,
+                referencia_tipo='taller',
+                referencia_id=taller.id,
+                fecha=datetime.now(),
+            ))
         db.session.commit()
-        flash(f'Orden #{taller.numero} marcada como entregada y paga. Se registró ingreso de ${monto:.2f} en Caja.', 'success')
+        flash(f'Orden #{taller.numero} marcada como entregada y paga. Se registró ingreso de ${taller.total_final:.2f} en Caja.', 'success')
     return redirect(url_for('taller.detalle', id=id))
 
 
@@ -273,20 +259,31 @@ def cobrar_deuda(id):
 
     forma_pago = request.form.get('forma_pago', 'efectivo')
     monto = taller.total_final
+    totales_por_cuenta = obtener_totales_taller_por_cuenta(taller)
     taller.pagado = True
     taller.forma_pago = forma_pago
 
-    mov = MovimientoCaja(
-        tipo='ingreso',
-        cuenta='servicio_tecnico',
-        forma_pago=forma_pago,
-        concepto=f'Cobro cuenta corriente #{taller.numero} - {taller.cliente.nombre_completo}',
-        monto=monto,
-        referencia_tipo='taller',
-        referencia_id=taller.id,
-        fecha=datetime.now(),
-    )
-    db.session.add(mov)
+    for cuenta, importe in totales_por_cuenta.items():
+        db.session.add(MovimientoCaja(
+            tipo='ingreso',
+            cuenta=cuenta,
+            forma_pago=forma_pago,
+            concepto=f'Cobro cuenta corriente #{taller.numero} - {taller.cliente.nombre_completo}',
+            monto=importe,
+            referencia_tipo='taller',
+            referencia_id=taller.id,
+            fecha=datetime.now(),
+        ))
+        registrar_movimiento_cuenta_corriente(
+            cliente_id=taller.cliente_id,
+            tipo='abono',
+            monto=importe,
+            concepto=f'Pago orden taller #{taller.numero}',
+            cuenta=cuenta,
+            referencia_tipo='taller',
+            referencia_id=taller.id,
+            fecha=datetime.now(),
+        )
     db.session.commit()
     flash(f'Deuda de la orden #{taller.numero} cobrada. Se registró ingreso de ${monto:.2f} en Caja.', 'success')
     return redirect(url_for('taller.detalle', id=id))

@@ -36,6 +36,8 @@
       <td>
         {% if v.tipo_comprobante == 'FACTURA' %}
         <span class="badge bg-primary">Factura</span>
+        {% elif v.tipo_comprobante == 'NOTA_CREDITO' %}
+        <span class="badge bg-danger">Nota Crédito</span>
         {% else %}
         <span class="badge bg-secondary">Nota Venta</span>
         {% endif %}

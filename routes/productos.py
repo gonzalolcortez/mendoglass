@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required
 from models import (db, Producto, Servicio, Categoria, Proveedor,
-                    IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO)
+                    IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO,
+                    registrar_movimiento_cc_proveedor, obtener_totales_ingreso_por_cuenta)
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
@@ -194,6 +195,13 @@ def nuevo_ingreso_mercaderia():
         forma_pago = request.form.get('forma_pago', 'efectivo')
         notas = request.form.get('notas', '').strip()
 
+        if forma_pago == 'cuenta_corriente' and not proveedor_id:
+            flash('Para registrar compra en cuenta corriente debe seleccionar un proveedor.', 'danger')
+            return render_template('productos/ingreso_mercaderia.html',
+                                   productos=productos_json, proveedores=proveedores,
+                                   formas_pago=FORMAS_PAGO,
+                                   categorias=Categoria.query.order_by(Categoria.nombre).all())
+
         nombres = request.form.getlist('item_nombre[]')
         producto_ids = request.form.getlist('item_producto_id[]')
         cantidades = request.form.getlist('item_cantidad[]')
@@ -215,6 +223,7 @@ def nuevo_ingreso_mercaderia():
         db.session.flush()
 
         total = 0.0
+        line_items = []
         for nombre, pid_str, cant_str, precio_str in zip(nombres, producto_ids, cantidades, precios):
             nombre = nombre.strip()
             if not nombre:
@@ -255,22 +264,40 @@ def nuevo_ingreso_mercaderia():
                 subtotal=subtotal,
             )
             db.session.add(item)
+            line_items.append(item)
 
         ingreso.total = total
+        totales_por_cuenta = obtener_totales_ingreso_por_cuenta(line_items)
 
-        mov = MovimientoCaja(
-            tipo='egreso',
-            cuenta='compra_mercaderia',
-            forma_pago=forma_pago,
-            concepto=f'Ingreso de Mercadería #{ingreso.id}',
-            monto=total,
-            referencia_tipo='ingreso_mercaderia',
-            referencia_id=ingreso.id,
-            fecha=datetime.now(),
-        )
-        db.session.add(mov)
+        if forma_pago == 'cuenta_corriente':
+            for cuenta, monto in totales_por_cuenta.items():
+                registrar_movimiento_cc_proveedor(
+                    proveedor_id=int(proveedor_id),
+                    tipo='cargo',
+                    monto=monto,
+                    concepto=f'Ingreso de Mercadería #{ingreso.id}',
+                    cuenta=cuenta,
+                    referencia_tipo='ingreso_mercaderia',
+                    referencia_id=ingreso.id,
+                    fecha=datetime.now(),
+                )
+        else:
+            for cuenta, monto in totales_por_cuenta.items():
+                db.session.add(MovimientoCaja(
+                    tipo='egreso',
+                    cuenta=cuenta,
+                    forma_pago=forma_pago,
+                    concepto=f'Ingreso de Mercadería #{ingreso.id}',
+                    monto=monto,
+                    referencia_tipo='ingreso_mercaderia',
+                    referencia_id=ingreso.id,
+                    fecha=datetime.now(),
+                ))
         db.session.commit()
-        flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock y caja actualizados.', 'success')
+        if forma_pago == 'cuenta_corriente':
+            flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock actualizado y deuda cargada en cuenta corriente del proveedor.', 'success')
+        else:
+            flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock y caja actualizados.', 'success')
         return redirect(url_for('productos.ingresos_mercaderia'))
 
     return render_template('productos/ingreso_mercaderia.html',

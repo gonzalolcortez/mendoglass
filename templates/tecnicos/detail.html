@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% block title %}{{ tecnico.nombre_display }}{% endblock %}
+{% block page_title %}{{ tecnico.nombre_display }}{% endblock %}
+
+{% block topbar_actions %}
+<a href="{{ url_for('tecnicos.editar', id=tecnico.id) }}" class="btn btn-sm btn-outline-primary">
+  <i class="bi bi-pencil me-1"></i>Editar
+</a>
+<form method="post" action="{{ url_for('tecnicos.eliminar', id=tecnico.id) }}" class="d-inline"
+      onsubmit="return confirm('¿Cambiar estado de este técnico?')">
+  <button class="btn btn-sm {% if tecnico.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+    <i class="bi {% if tecnico.activo %}bi-person-dash{% else %}bi-person-check{% endif %} me-1"></i>
+    {% if tecnico.activo %}Desactivar{% else %}Activar{% endif %}
+  </button>
+</form>
+{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="form-card">
+      <div class="text-center mb-3">
+        <div class="rounded-circle bg-info d-inline-flex align-items-center justify-content-center text-white fw-bold"
+             style="width:64px;height:64px;font-size:1.5rem">
+          {{ tecnico.nombre[0] }}
+        </div>
+        <h5 class="mt-2 mb-0">{{ tecnico.nombre_display }}</h5>
+        <small class="text-muted">
+          {% if tecnico.es_tercerizado %}Técnico tercerizado{% else %}Técnico propio{% endif %}
+        </small>
+      </div>
+      <hr>
+      <div class="mb-2"><i class="bi bi-building me-2 text-muted"></i>{{ tecnico.empresa_tercerizado or 'Sin empresa asociada' }}</div>
+      <div class="mb-2">
+        <i class="bi bi-person-badge me-2 text-muted"></i>
+        {% if tecnico.activo %}Activo{% else %}Inactivo{% endif %}
+      </div>
+    </div>
+
+    <div class="form-card mt-3">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="fw-semibold"><i class="bi bi-journal-text me-1"></i>Cuenta Corriente</span>
+        {% if tecnico.saldo_cc > 0 %}
+        <span class="badge bg-danger">Debe ${{ '%.2f'|format(tecnico.saldo_cc) }}</span>
+        {% elif tecnico.saldo_cc < 0 %}
+        <span class="badge bg-success">A favor ${{ '%.2f'|format((-1) * tecnico.saldo_cc) }}</span>
+        {% else %}
+        <span class="badge bg-secondary">Saldo $0.00</span>
+        {% endif %}
+      </div>
+      <p class="text-muted small mb-3">Registrá adelantos, retiro de mercadería/repuestos o devoluciones. Cada movimiento impacta la cuenta corriente del técnico y Contabilidad.</p>
+      <form method="post" action="{{ url_for('tecnicos.registrar_movimiento', id=tecnico.id) }}" class="row g-2">
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Movimiento</label>
+          <select name="tipo" class="form-select form-select-sm" required>
+            <option value="cargo">Cargo al técnico</option>
+            <option value="abono">Abono / devolución</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Monto</label>
+          <input type="number" step="0.01" min="0.01" name="monto" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-12">
+          <label class="form-label small fw-semibold">Concepto</label>
+          <input type="text" name="concepto" class="form-control form-control-sm" placeholder="Ej: Adelanto, repuesto retirado, devolución de efectivo" required>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Cuenta afectada</label>
+          <select name="cuenta" class="form-select form-select-sm" required>
+            {% for val, label in cuentas_disponibles %}
+            <option value="{{ val }}" {% if val == 'tecnicos' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Forma de registro</label>
+          <select name="forma_pago" class="form-select form-select-sm" required>
+            {% for val, label in formas_pago %}
+            <option value="{{ val }}" {% if val == 'cuenta_corriente' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-sm btn-primary w-100">
+            <i class="bi bi-check2-circle me-1"></i>Registrar Movimiento
+          </button>
+        </div>
+      </form>
+
+      <hr class="my-3">
+
+      <div class="fw-semibold mb-2"><i class="bi bi-box-seam me-1"></i>Mercadería y Repuestos</div>
+      <form method="post" action="{{ url_for('tecnicos.registrar_movimiento_stock', id=tecnico.id) }}" class="row g-2" id="form-mov-stock-tecnico">
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Tipo</label>
+          <select name="tipo" class="form-select form-select-sm" id="stockTipo" required>
+            <option value="cargo">Retiro (cargo)</option>
+            <option value="abono">Devolución (abono)</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Producto</label>
+          <select name="producto_id" class="form-select form-select-sm" id="stockProducto" required>
+            <option value="">Seleccionar…</option>
+            {% for prod in productos %}
+            <option value="{{ prod.id }}"
+                    data-stock="{{ prod.stock_actual }}"
+                    data-precio-venta="{{ prod.precio_venta or 0 }}"
+                    data-precio-compra="{{ prod.precio_compra or 0 }}">
+              {{ prod.nombre }} (stock: {{ prod.stock_actual }})
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Cantidad</label>
+          <input type="number" min="1" step="1" name="cantidad" id="stockCantidad" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Precio Unit.</label>
+          <input type="number" min="0.01" step="0.01" name="precio_unitario" id="stockPrecioUnit" class="form-control form-control-sm" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label small fw-semibold">Total</label>
+          <input type="text" id="stockTotal" class="form-control form-control-sm" value="$0.00" readonly>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Tipo rápido</label>
+          <select class="form-select form-select-sm" id="stockTipoRapido">
+            <option value="repuestos" selected>Retiro de repuesto</option>
+            <option value="mercaderia">Retiro de mercadería</option>
+            <option value="manual">Manual</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Cuenta afectada</label>
+          <select name="cuenta" class="form-select form-select-sm" id="stockCuenta" required>
+            {% for val, label in cuentas_disponibles %}
+            <option value="{{ val }}" {% if val == 'compra_repuestos' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label small fw-semibold">Forma de registro</label>
+          <select name="forma_pago" class="form-select form-select-sm" required>
+            {% for val, label in formas_pago %}
+            <option value="{{ val }}" {% if val == 'cuenta_corriente' %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12">
+          <div class="form-text" id="stockAyuda">Este movimiento impacta stock, cuenta corriente del técnico y caja/contabilidad.</div>
+        </div>
+        <div class="col-12">
+          <button class="btn btn-sm btn-outline-primary w-100">
+            <i class="bi bi-arrow-left-right me-1"></i>Registrar Movimiento de Stock
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="table-card">
+      <div class="p-3 border-bottom fw-semibold"><i class="bi bi-clock-history me-1"></i>Movimientos de Cuenta Corriente</div>
+      {% if movimientos_cc %}
+      <table class="table table-hover mb-0">
+        <thead><tr><th>Fecha</th><th>Concepto</th><th>Cuenta</th><th>Forma</th><th>Tipo</th><th class="text-end">Monto</th></tr></thead>
+        <tbody>
+        {% for m in movimientos_cc %}
+        <tr>
+          <td>{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td>{{ m.concepto }}</td>
+          <td>{{ dict(cuentas_disponibles).get(m.cuenta, m.cuenta or '—') }}</td>
+          <td>{{ dict(formas_pago).get(m.forma_pago, m.forma_pago or '—') }}</td>
+          <td>
+            {% if m.tipo == 'cargo' %}
+            <span class="badge bg-danger">Cargo</span>
+            {% else %}
+            <span class="badge bg-success">Abono</span>
+            {% endif %}
+          </td>
+          <td class="text-end fw-semibold {% if m.tipo == 'cargo' %}text-danger{% else %}text-success{% endif %}">
+            {% if m.tipo == 'cargo' %}+{% else %}-{% endif %}${{ '%.2f'|format(m.monto) }}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-muted text-center small">Sin movimientos de cuenta corriente para este técnico.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    const producto = document.getElementById('stockProducto');
+    const cantidad = document.getElementById('stockCantidad');
+    const precio = document.getElementById('stockPrecioUnit');
+    const total = document.getElementById('stockTotal');
+    const tipo = document.getElementById('stockTipo');
+    const ayuda = document.getElementById('stockAyuda');
+    const tipoRapido = document.getElementById('stockTipoRapido');
+    const cuenta = document.getElementById('stockCuenta');
+
+    function selectedOption() {
+      return producto && producto.selectedOptions ? producto.selectedOptions[0] : null;
+    }
+
+    function refreshPriceFromProduct() {
+      const opt = selectedOption();
+      if (!opt) return;
+      const pv = Number(opt.dataset.precioVenta || 0);
+      const pc = Number(opt.dataset.precioCompra || 0);
+      if (!Number(precio.value || 0)) {
+        precio.value = (pv > 0 ? pv : pc).toFixed(2);
+      }
+    }
+
+    function refreshHelp() {
+      const opt = selectedOption();
+      const stock = opt ? Number(opt.dataset.stock || 0) : 0;
+      const esRetiro = (tipo.value || 'cargo') === 'cargo';
+      if (esRetiro) {
+        ayuda.textContent = 'Retiro: descuenta stock y genera cargo al técnico. Stock disponible: ' + stock + '.';
+      } else {
+        ayuda.textContent = 'Devolución: suma stock y genera abono al técnico.';
+      }
+    }
+
+    function refreshTotal() {
+      const q = Number(cantidad.value || 0);
+      const p = Number(precio.value || 0);
+      total.value = '$' + (q * p).toFixed(2);
+    }
+
+    function refreshCuentaPorTipoRapido() {
+      if (!tipoRapido || !cuenta) return;
+      if (tipoRapido.value === 'repuestos') {
+        cuenta.value = 'compra_repuestos';
+      } else if (tipoRapido.value === 'mercaderia') {
+        cuenta.value = 'compra_mercaderia';
+      }
+    }
+
+    [producto, cantidad, precio, tipo].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('change', function () {
+        if (el === producto) refreshPriceFromProduct();
+        refreshHelp();
+        refreshTotal();
+      });
+      el.addEventListener('input', refreshTotal);
+    });
+
+    if (tipoRapido) {
+      tipoRapido.addEventListener('change', refreshCuentaPorTipoRapido);
+    }
+
+    refreshCuentaPorTipoRapido();
+    refreshPriceFromProduct();
+    refreshHelp();
+    refreshTotal();
+  })();
+</script>
+{% endblock %}

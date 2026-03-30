@@ -392,7 +392,9 @@ function agregarItem() {
   tr.id = 'row-' + rowId;
   tr.innerHTML = `
     <td>
+      <input type="hidden" name="item_tipo[]" value="${tipo}">
       <input type="hidden" name="item_producto_id[]" value="${tipo === 'producto' ? id : ''}">
+      <input type="hidden" name="item_servicio_id[]" value="${tipo === 'servicio' ? id : ''}">
       <input type="text" name="item_codigo[]" class="form-control form-control-sm" value="${codigo}" style="width:70px">
     </td>
     <td>

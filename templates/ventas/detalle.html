@@ -35,6 +35,8 @@
         <div>
           {% if venta.tipo_comprobante == 'FACTURA' %}
           <span class="badge bg-primary fs-6 mb-1">Factura Electrónica</span>
+          {% elif venta.tipo_comprobante == 'NOTA_CREDITO' %}
+          <span class="badge bg-danger fs-6 mb-1">Nota de Crédito</span>
           {% else %}
           <span class="badge bg-secondary fs-6 mb-1">Nota de Venta</span>
           {% endif %}

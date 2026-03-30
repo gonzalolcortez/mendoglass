@@ -7,7 +7,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required
 from models import (
     db, Venta, VentaItem, Producto, Servicio, Cliente,
-    MovimientoCaja, FORMAS_PAGO, Categoria,
+    MovimientoCaja, FORMAS_PAGO, Categoria, registrar_movimiento_cuenta_corriente,
+    obtener_totales_venta_por_cuenta,
 )
 from datetime import datetime, date
 from sqlalchemy.orm import joinedload
@@ -24,6 +25,7 @@ ALICUOTAS_IVA = [
 
 # Condiciones de venta (forma de pago)
 CONDICIONES_VENTA = FORMAS_PAGO
+FORMAS_DEVOLUCION = [fp for fp in FORMAS_PAGO if fp[0] in ('efectivo', 'mercado_pago', 'cuenta_corriente')]
 
 # Map alicuota → AFIP iva_id
 _AFIP_IVA_ID = {0.0: 4, 10.5: 8, 21.0: 5, 27.0: 6}
@@ -43,7 +45,7 @@ _TIPO_CBTE_LETRA = {
 def _siguiente_numero(tipo_comprobante: str, punto_venta: int | None = None) -> int:
     """Returns the next sequential comprobante number."""
     query = Venta.query.filter_by(tipo_comprobante=tipo_comprobante)
-    if tipo_comprobante != 'NOTA_VENTA':
+    if tipo_comprobante not in ('NOTA_VENTA', 'NOTA_CREDITO'):
         query = query.filter_by(punto_venta=punto_venta)
 
     ultimo = (
@@ -54,7 +56,7 @@ def _siguiente_numero(tipo_comprobante: str, punto_venta: int | None = None) -> 
     )
     if ultimo:
         return ultimo.numero_comprobante + 1
-    return 0 if tipo_comprobante == 'NOTA_VENTA' else 1
+    return 0 if tipo_comprobante in ('NOTA_VENTA', 'NOTA_CREDITO') else 1
 
 
 def _tipo_cbte_afip(condicion_iva: str) -> int:
@@ -257,6 +259,8 @@ def _parse_items_from_form():
     bonificaciones = request.form.getlist('item_bonificacion[]')
     alicuotas = request.form.getlist('item_alicuota[]')
     producto_ids = request.form.getlist('item_producto_id[]')
+    servicio_ids = request.form.getlist('item_servicio_id[]')
+    tipos = request.form.getlist('item_tipo[]')
 
     items = []
     for i, desc in enumerate(descripciones):
@@ -271,6 +275,8 @@ def _parse_items_from_form():
             'bonificacion': float(bonificaciones[i] or 0) if i < len(bonificaciones) else 0.0,
             'alicuota': float(alicuotas[i] or 21) if i < len(alicuotas) else 21.0,
             'producto_id': producto_ids[i] if i < len(producto_ids) else '',
+            'servicio_id': servicio_ids[i] if i < len(servicio_ids) else '',
+            'tipo': tipos[i] if i < len(tipos) else ('producto' if i < len(producto_ids) and producto_ids[i] else 'libre'),
         })
     return items
 
@@ -325,6 +331,157 @@ def nueva():
     )
 
 
+@ventas_bp.route('/devolucion/nueva', methods=['GET'])
+@login_required
+def nueva_devolucion():
+    clientes = Cliente.query.order_by(Cliente.apellido).all()
+    productos_obj = Producto.query.filter_by(activo=True).order_by(Producto.nombre).all()
+    categorias = Categoria.query.order_by(Categoria.nombre).all()
+
+    productos_json = [
+        {
+            'id': p.id,
+            'nombre': p.nombre,
+            'codigo_barras': p.codigo_barras or '',
+            'precio_venta': p.precio_venta,
+            'stock_actual': p.stock_actual,
+            'categoria_id': p.categoria_id,
+            'unidad': p.unidad or 'unidad',
+        }
+        for p in productos_obj
+    ]
+
+    return render_template(
+        'ventas/devolucion_form.html',
+        clientes=clientes,
+        productos=productos_json,
+        categorias=categorias,
+        formas_devolucion=FORMAS_DEVOLUCION,
+        now=datetime.now(),
+    )
+
+
+@ventas_bp.route('/devolucion/guardar', methods=['POST'])
+@login_required
+def guardar_devolucion():
+    cliente_id = request.form.get('cliente_id') or None
+    forma_pago = request.form.get('forma_pago', 'efectivo')
+    notas = request.form.get('notas', '').strip()
+
+    if not cliente_id:
+        flash('Debe seleccionar un cliente para emitir la Nota de Crédito.', 'danger')
+        return redirect(url_for('ventas.nueva_devolucion'))
+
+    if forma_pago not in dict(FORMAS_DEVOLUCION):
+        flash('Forma de devolución inválida. Use Efectivo, Mercado Pago o Cuenta Corriente.', 'danger')
+        return redirect(url_for('ventas.nueva_devolucion'))
+
+    items_data = _parse_items_from_form()
+    if not items_data:
+        flash('Debe agregar al menos un producto para devolver.', 'danger')
+        return redirect(url_for('ventas.nueva_devolucion'))
+
+    # Validations: returns are only for products.
+    for it in items_data:
+        pid = it['producto_id']
+        if not pid:
+            flash('La devolución solo admite productos. Quite líneas libres/servicios.', 'danger')
+            return redirect(url_for('ventas.nueva_devolucion'))
+        if it['cantidad'] <= 0 or it['precio'] <= 0:
+            flash('Cantidad y precio deben ser mayores que cero.', 'danger')
+            return redirect(url_for('ventas.nueva_devolucion'))
+
+    venta = Venta(
+        tipo_comprobante='NOTA_CREDITO',
+        cliente_id=int(cliente_id),
+        forma_pago=forma_pago,
+        notas=notas,
+        fecha=datetime.now(),
+    )
+    venta.numero_comprobante = _siguiente_numero('NOTA_CREDITO')
+    db.session.add(venta)
+    db.session.flush()
+
+    total_credito = 0.0
+    line_items = []
+    for it in items_data:
+        pid = int(it['producto_id'])
+        prod = Producto.query.get(pid)
+        if not prod:
+            flash('Uno de los productos seleccionados no existe.', 'danger')
+            db.session.rollback()
+            return redirect(url_for('ventas.nueva_devolucion'))
+
+        cant = float(it['cantidad'])
+        precio = float(it['precio'])
+        bonif = float(it.get('bonificacion', 0) or 0)
+        precio_bonif = precio * (1 - bonif / 100) if bonif else precio
+        sub_total = round(precio_bonif * cant, 2)
+
+        vi = VentaItem(
+            venta_id=venta.id,
+            tipo='producto',
+            producto_id=pid,
+            codigo=it.get('codigo', ''),
+            descripcion_libre=it.get('descripcion') or prod.nombre,
+            unidad=it.get('unidad') or prod.unidad or 'unidad',
+            cantidad=cant,
+            precio_unitario=precio,
+            bonificacion=bonif,
+            alicuota_iva=0.0,
+            subtotal_neto=-sub_total,
+            subtotal=-sub_total,
+        )
+        db.session.add(vi)
+        line_items.append(vi)
+
+        # Restock returned merchandise.
+        prod.stock_actual += int(cant)
+        total_credito += sub_total
+
+    venta.subtotal = -round(total_credito, 2)
+    venta.iva_total = 0.0
+    venta.total = -round(total_credito, 2)
+    venta.pagado = True
+
+    cliente = Cliente.query.get(int(cliente_id))
+    cliente_label = cliente.nombre_completo if cliente else f'Cliente #{cliente_id}'
+    totales_por_cuenta = obtener_totales_venta_por_cuenta(line_items)
+
+    if forma_pago == 'cuenta_corriente':
+        for cuenta, monto in totales_por_cuenta.items():
+            registrar_movimiento_cuenta_corriente(
+                cliente_id=cliente.id if cliente else int(cliente_id),
+                tipo='abono',
+                monto=monto,
+                concepto=f'Nota de Crédito {venta.numero_display}',
+                cuenta=cuenta,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                fecha=datetime.now(),
+            )
+    else:
+        for cuenta, monto in totales_por_cuenta.items():
+            db.session.add(MovimientoCaja(
+                tipo='egreso',
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=f'Nota de Crédito {venta.numero_display} - {cliente_label}',
+                monto=monto,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                fecha=datetime.now(),
+            ))
+    db.session.commit()
+
+    flash(
+        f'Nota de Crédito {venta.numero_display} registrada por ${total_credito:,.2f}. '
+        f'Stock reintegrado y devolución aplicada por {dict(FORMAS_DEVOLUCION).get(forma_pago)}.',
+        'success',
+    )
+    return redirect(url_for('ventas.detalle', id=venta.id))
+
+
 @ventas_bp.route('/guardar', methods=['POST'])
 @login_required
 def guardar():
@@ -333,6 +490,10 @@ def guardar():
     punto_venta = int(request.form.get('punto_venta', 1) or 1) if es_factura else None
     cliente_id = request.form.get('cliente_id') or None
     forma_pago = request.form.get('forma_pago', 'efectivo')
+    if forma_pago == 'cuenta_corriente' and not cliente_id:
+        flash('Para vender en cuenta corriente debe seleccionar un cliente.', 'danger')
+        return redirect(url_for('ventas.nueva'))
+
     notas = request.form.get('notas', '').strip()
 
     items_data = _parse_items_from_form()
@@ -372,6 +533,7 @@ def guardar():
 
     subtotal_neto = 0.0
     iva_total = 0.0
+    line_items = []
 
     for it in items_data:
         cant = it['cantidad']
@@ -379,6 +541,8 @@ def guardar():
         bonif = it['bonificacion']
         alicuota = it['alicuota'] if es_factura else 0.0
         pid = it['producto_id']
+        sid = it.get('servicio_id')
+        item_tipo = it.get('tipo') or ('producto' if pid else 'libre')
 
         precio_bonif = precio * (1 - bonif / 100) if bonif else precio
         if es_factura:
@@ -392,8 +556,9 @@ def guardar():
 
         vi = VentaItem(
             venta_id=venta.id,
-            tipo='producto' if pid else 'libre',
+            tipo=item_tipo if item_tipo in ('producto', 'servicio', 'libre') else ('producto' if pid else 'libre'),
             producto_id=int(pid) if pid else None,
+            servicio_id=int(sid) if sid else None,
             codigo=it['codigo'],
             descripcion_libre=it['descripcion'],
             unidad=it['unidad'] or 'unidad',
@@ -405,9 +570,10 @@ def guardar():
             subtotal=sub_total,
         )
         db.session.add(vi)
+        line_items.append(vi)
 
         # Discount stock
-        if pid:
+        if item_tipo == 'producto' and pid:
             prod = Producto.query.get(int(pid))
             if prod:
                 prod.stock_actual -= int(cant)
@@ -419,7 +585,7 @@ def guardar():
     venta.subtotal = round(subtotal_neto, 2)
     venta.iva_total = round(iva_total, 2)
     venta.total = total
-    venta.pagado = True
+    venta.pagado = forma_pago != 'cuenta_corriente'
 
     # Assign comprobante number for NOTA_VENTA now; FACTURA gets it from AFIP
     if tipo_comprobante == 'NOTA_VENTA':
@@ -432,18 +598,32 @@ def guardar():
         if c:
             cliente_label = f' – {c.nombre_completo}'
     tipo_label = dict(Venta.TIPOS_COMPROBANTE).get(tipo_comprobante, tipo_comprobante)
+    totales_por_cuenta = obtener_totales_venta_por_cuenta(line_items)
 
-    mov = MovimientoCaja(
-        tipo='ingreso',
-        cuenta='venta_productos',
-        forma_pago=forma_pago,
-        concepto=f'{tipo_label}{cliente_label or " – Mostrador"}',
-        monto=total,
-        referencia_tipo='venta',
-        referencia_id=venta.id,
-        fecha=datetime.now(),
-    )
-    db.session.add(mov)
+    if forma_pago == 'cuenta_corriente':
+        for cuenta, monto in totales_por_cuenta.items():
+            registrar_movimiento_cuenta_corriente(
+                cliente_id=int(cliente_id),
+                tipo='cargo',
+                monto=monto,
+                concepto=f'{tipo_label} {venta.numero_display}',
+                cuenta=cuenta,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                fecha=datetime.now(),
+            )
+    else:
+        for cuenta, monto in totales_por_cuenta.items():
+            db.session.add(MovimientoCaja(
+                tipo='ingreso',
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=f'{tipo_label}{cliente_label or " - Mostrador"}',
+                monto=monto,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                fecha=datetime.now(),
+            ))
     db.session.commit()
 
     # AFIP emission for FACTURA
@@ -464,11 +644,18 @@ def guardar():
                 'warning',
             )
     else:
-        flash(
-            f'Nota de Venta {venta.numero_display} registrada por '
-            f'${total:,.2f}. Stock actualizado.',
-            'success',
-        )
+        if forma_pago == 'cuenta_corriente':
+            flash(
+                f'Nota de Venta {venta.numero_display} registrada por ${total:,.2f}. '
+                f'Se cargó en la cuenta corriente del cliente.',
+                'success',
+            )
+        else:
+            flash(
+                f'Nota de Venta {venta.numero_display} registrada por '
+                f'${total:,.2f}. Stock actualizado.',
+                'success',
+            )
 
     return redirect(url_for('ventas.detalle', id=venta.id))
 
@@ -551,11 +738,19 @@ def imprimir(id):
 @login_required
 def eliminar(id):
     venta = Venta.query.get_or_404(id)
-    # Return stock
+    # Revert stock movement
     for item in venta.items:
         if item.tipo == 'producto' and item.producto:
-            item.producto.stock_actual += int(item.cantidad)
+            if venta.tipo_comprobante == 'NOTA_CREDITO':
+                item.producto.stock_actual -= int(item.cantidad)
+            else:
+                item.producto.stock_actual += int(item.cantidad)
     MovimientoCaja.query.filter_by(referencia_tipo='venta', referencia_id=venta.id).delete()
+    from models import ClienteCuentaCorrienteMovimiento
+    ClienteCuentaCorrienteMovimiento.query.filter_by(
+        referencia_tipo='venta',
+        referencia_id=venta.id,
+    ).delete()
     db.session.delete(venta)
     db.session.commit()
     flash('Venta eliminada y stock devuelto.', 'success')

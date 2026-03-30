@@ -1,6 +1,7 @@
 from extensions import db
 from datetime import datetime
 from flask_login import UserMixin
+from sqlalchemy import case, func
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -30,12 +31,29 @@ class Tecnico(db.Model):
     es_tercerizado = db.Column(db.Boolean, default=False)
     empresa_tercerizado = db.Column(db.String(150))
     activo = db.Column(db.Boolean, default=True)
+    movimientos_cuenta_corriente = db.relationship(
+        'TecnicoCuentaCorrienteMovimiento',
+        backref='tecnico',
+        lazy=True,
+        cascade='all, delete-orphan',
+    )
 
     @property
     def nombre_display(self):
         if self.es_tercerizado and self.empresa_tercerizado:
             return f"Técnico Tercerizado - {self.empresa_tercerizado}"
         return self.nombre
+
+    @property
+    def saldo_cuenta_corriente(self):
+        saldo = 0.0
+        for mov in self.movimientos_cuenta_corriente:
+            monto = float(mov.monto or 0.0)
+            if mov.tipo == 'cargo':
+                saldo += monto
+            else:
+                saldo -= monto
+        return round(saldo, 2)
 
 
 class Cliente(db.Model):
@@ -54,6 +72,12 @@ class Cliente(db.Model):
 
     talleres = db.relationship('Taller', backref='cliente', lazy=True)
     ventas = db.relationship('Venta', backref='cliente', lazy=True)
+    movimientos_cuenta_corriente = db.relationship(
+        'ClienteCuentaCorrienteMovimiento',
+        backref='cliente',
+        lazy=True,
+        cascade='all, delete-orphan',
+    )
 
     CONDICIONES_IVA = [
         ('CF', 'Consumidor Final'),
@@ -65,6 +89,17 @@ class Cliente(db.Model):
     @property
     def nombre_completo(self):
         return f"{self.nombre} {self.apellido}"
+
+    @property
+    def saldo_cuenta_corriente(self):
+        saldo = 0.0
+        for mov in self.movimientos_cuenta_corriente:
+            monto = float(mov.monto or 0.0)
+            if mov.tipo == 'cargo':
+                saldo += monto
+            else:
+                saldo -= monto
+        return round(saldo, 2)
 
 
 class Proveedor(db.Model):
@@ -79,10 +114,27 @@ class Proveedor(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     ingresos = db.relationship('IngresoMercaderia', backref='proveedor', lazy=True)
+    movimientos_cuenta_corriente = db.relationship(
+        'ProveedorCuentaCorrienteMovimiento',
+        backref='proveedor',
+        lazy=True,
+        cascade='all, delete-orphan',
+    )
 
     @property
     def nombre_completo(self):
         return f"{self.nombre} {self.apellido}"
+
+    @property
+    def saldo_cuenta_corriente(self):
+        saldo = 0.0
+        for mov in self.movimientos_cuenta_corriente:
+            monto = float(mov.monto or 0.0)
+            if mov.tipo == 'cargo':
+                saldo += monto
+            else:
+                saldo -= monto
+        return round(saldo, 2)
 
 
 class Categoria(db.Model):
@@ -206,7 +258,7 @@ class TallerServicio(db.Model):
 class Venta(db.Model):
     __tablename__ = 'ventas'
     id = db.Column(db.Integer, primary_key=True)
-    # FACTURA / NOTA_VENTA
+    # FACTURA / NOTA_VENTA / NOTA_CREDITO
     tipo_comprobante = db.Column(db.String(20), default='NOTA_VENTA', nullable=False)
     punto_venta = db.Column(db.Integer, default=1)
     numero_comprobante = db.Column(db.Integer)
@@ -229,6 +281,7 @@ class Venta(db.Model):
 
     TIPOS_COMPROBANTE = [
         ('NOTA_VENTA', 'Nota de Venta'),
+        ('NOTA_CREDITO', 'Nota de Crédito'),
         ('FACTURA',    'Factura Electrónica'),
     ]
 
@@ -237,7 +290,7 @@ class Venta(db.Model):
         nro = self.numero_comprobante
         if nro is None:
             return f'#{self.id}'
-        if self.tipo_comprobante == 'NOTA_VENTA':
+        if self.tipo_comprobante in ('NOTA_VENTA', 'NOTA_CREDITO'):
             return f'{nro:04d}'
         pv = self.punto_venta or 1
         if nro is not None:
@@ -294,6 +347,88 @@ class MovimientoCaja(db.Model):
     fecha = db.Column(db.DateTime, default=datetime.now)
     notas = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+class ClienteCuentaCorrienteMovimiento(db.Model):
+    __tablename__ = 'clientes_cuenta_corriente'
+    __table_args__ = (
+        db.Index('ix_clientes_cc_cliente_fecha', 'cliente_id', 'fecha'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=False)
+    # cargo: aumenta deuda | abono: reduce deuda / genera saldo a favor
+    tipo = db.Column(db.String(10), nullable=False)
+    concepto = db.Column(db.String(200), nullable=False)
+    monto = db.Column(db.Float, nullable=False)
+    cuenta = db.Column(db.String(50), default='otro')
+    referencia_tipo = db.Column(db.String(20))
+    referencia_id = db.Column(db.Integer)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    TIPOS = [
+        ('cargo', 'Cargo'),
+        ('abono', 'Abono'),
+    ]
+
+    @property
+    def monto_con_signo(self):
+        monto = float(self.monto or 0.0)
+        return monto if self.tipo == 'cargo' else -monto
+
+
+class ProveedorCuentaCorrienteMovimiento(db.Model):
+    __tablename__ = 'proveedores_cuenta_corriente'
+    __table_args__ = (
+        db.Index('ix_proveedores_cc_proveedor_fecha', 'proveedor_id', 'fecha'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    proveedor_id = db.Column(db.Integer, db.ForeignKey('proveedores.id'), nullable=False)
+    # cargo: aumenta deuda con proveedor | abono: reduce deuda / saldo a favor
+    tipo = db.Column(db.String(10), nullable=False)
+    concepto = db.Column(db.String(200), nullable=False)
+    monto = db.Column(db.Float, nullable=False)
+    cuenta = db.Column(db.String(50), default='otro')
+    referencia_tipo = db.Column(db.String(30))
+    referencia_id = db.Column(db.Integer)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    TIPOS = [
+        ('cargo', 'Cargo'),
+        ('abono', 'Abono'),
+    ]
+
+
+class TecnicoCuentaCorrienteMovimiento(db.Model):
+    __tablename__ = 'tecnicos_cuenta_corriente'
+    __table_args__ = (
+        db.Index('ix_tecnicos_cc_tecnico_fecha', 'tecnico_id', 'fecha'),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    tecnico_id = db.Column(db.Integer, db.ForeignKey('tecnicos.id'), nullable=False)
+    tipo = db.Column(db.String(10), nullable=False)
+    concepto = db.Column(db.String(200), nullable=False)
+    monto = db.Column(db.Float, nullable=False)
+    cuenta = db.Column(db.String(50), default='tecnicos')
+    forma_pago = db.Column(db.String(50), default='cuenta_corriente')
+    referencia_tipo = db.Column(db.String(30))
+    referencia_id = db.Column(db.Integer)
+    fecha = db.Column(db.DateTime, default=datetime.now)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+    TIPOS = [
+        ('cargo', 'Cargo'),
+        ('abono', 'Abono'),
+    ]
+
+    @property
+    def monto_con_signo(self):
+        monto = float(self.monto or 0.0)
+        return monto if self.tipo == 'cargo' else -monto
 
 
 class IngresoMercaderia(db.Model):
@@ -435,6 +570,7 @@ CUENTAS_CAJA = [
     ('venta_productos', 'Venta de Productos'),
     ('venta_repuestos', 'Venta de Repuestos'),
     ('servicio_tecnico', 'Servicio Técnico'),
+    ('tecnicos', 'Técnicos y Adelantos'),
     ('impuestos', 'Impuestos'),
     ('alquiler', 'Alquiler'),
     ('matias', 'Matias'),
@@ -448,5 +584,393 @@ FORMAS_PAGO = [
     ('efectivo', 'Efectivo'),
     ('mercado_pago', 'Mercado Pago'),
     ('tarjeta', 'Tarjetas'),
-    ('cuenta_corriente', 'Cuenta Corriente Gonzalo'),
+    ('cuenta_corriente', 'Cuenta Corriente'),
 ]
+
+
+_ORDEN_CUENTAS = [cuenta for cuenta, _ in CUENTAS_CAJA]
+_REPARTO_TOLERANCIA = 0.004
+_PALABRAS_REPUESTO = (
+    'repuesto',
+    'pantalla',
+    'bateria',
+    'batería',
+    'display',
+    'modulo',
+    'módulo',
+    'flex',
+    'placa',
+    'pin',
+    'conector',
+    'touch',
+    'vidrio',
+)
+
+
+def _texto_normalizado(value):
+    return ' '.join((value or '').strip().lower().split())
+
+
+def categoria_es_repuesto(nombre_categoria=None, nombre_producto=None):
+    texto = _texto_normalizado(nombre_categoria)
+    if not texto:
+        texto = _texto_normalizado(nombre_producto)
+    return any(palabra in texto for palabra in _PALABRAS_REPUESTO)
+
+
+def obtener_cuenta_producto(producto, tipo_movimiento='venta'):
+    es_repuesto = categoria_es_repuesto(
+        producto.categoria.nombre if getattr(producto, 'categoria', None) else None,
+        getattr(producto, 'nombre', None),
+    )
+    if tipo_movimiento == 'compra':
+        return 'compra_repuestos' if es_repuesto else 'compra_mercaderia'
+    return 'venta_repuestos' if es_repuesto else 'venta_productos'
+
+
+def acumular_total_por_cuenta(totales, cuenta, monto):
+    monto_val = round(float(monto or 0.0), 2)
+    if monto_val <= 0:
+        return totales
+    totales[cuenta] = round(float(totales.get(cuenta, 0.0)) + monto_val, 2)
+    return totales
+
+
+def normalizar_totales_por_cuenta(totales):
+    return {
+        cuenta: round(float(monto or 0.0), 2)
+        for cuenta, monto in totales.items()
+        if abs(float(monto or 0.0)) > _REPARTO_TOLERANCIA
+    }
+
+
+def obtener_saldos_por_cuenta_desde_movimientos(movimientos):
+    saldos = {}
+    for movimiento in sorted(movimientos, key=lambda item: (item.fecha or datetime.min, item.id or 0)):
+        cuenta = (getattr(movimiento, 'cuenta', None) or 'otro').strip() or 'otro'
+        monto = round(float(getattr(movimiento, 'monto', 0.0) or 0.0), 2)
+        if getattr(movimiento, 'tipo', None) == 'cargo':
+            saldos[cuenta] = round(float(saldos.get(cuenta, 0.0)) + monto, 2)
+        else:
+            saldos[cuenta] = round(float(saldos.get(cuenta, 0.0)) - monto, 2)
+    return {
+        cuenta: saldo
+        for cuenta, saldo in saldos.items()
+        if saldo > _REPARTO_TOLERANCIA
+    }
+
+
+def distribuir_monto_entre_cuentas(saldos_por_cuenta, monto):
+    restante = round(float(monto or 0.0), 2)
+    if restante <= 0:
+        return {}
+
+    asignaciones = {}
+    for cuenta in _ORDEN_CUENTAS:
+        saldo = round(float(saldos_por_cuenta.get(cuenta, 0.0) or 0.0), 2)
+        if saldo <= _REPARTO_TOLERANCIA or restante <= _REPARTO_TOLERANCIA:
+            continue
+        aplicado = min(saldo, restante)
+        if aplicado > _REPARTO_TOLERANCIA:
+            asignaciones[cuenta] = round(aplicado, 2)
+            restante = round(restante - aplicado, 2)
+
+    for cuenta, saldo in saldos_por_cuenta.items():
+        if cuenta in asignaciones or restante <= _REPARTO_TOLERANCIA:
+            continue
+        saldo_val = round(float(saldo or 0.0), 2)
+        if saldo_val <= _REPARTO_TOLERANCIA:
+            continue
+        aplicado = min(saldo_val, restante)
+        if aplicado > _REPARTO_TOLERANCIA:
+            asignaciones[cuenta] = round(aplicado, 2)
+            restante = round(restante - aplicado, 2)
+
+    if restante > _REPARTO_TOLERANCIA:
+        asignaciones['otro'] = round(float(asignaciones.get('otro', 0.0)) + restante, 2)
+
+    return normalizar_totales_por_cuenta(asignaciones)
+
+
+def obtener_totales_taller_por_cuenta(taller):
+    totales = {}
+    acumular_total_por_cuenta(totales, 'venta_repuestos', getattr(taller, 'total_productos', 0.0))
+    acumular_total_por_cuenta(totales, 'servicio_tecnico', getattr(taller, 'total_servicios', 0.0))
+    return normalizar_totales_por_cuenta(totales)
+
+
+def obtener_totales_venta_por_cuenta(items):
+    totales = {}
+    for item in items:
+        subtotal = round(abs(float(getattr(item, 'subtotal', 0.0) or 0.0)), 2)
+        if subtotal <= _REPARTO_TOLERANCIA:
+            continue
+        item_tipo = getattr(item, 'tipo', '')
+        if item_tipo == 'servicio':
+            cuenta = 'servicio_tecnico'
+        elif item_tipo == 'producto' and getattr(item, 'producto', None):
+            cuenta = obtener_cuenta_producto(item.producto, 'venta')
+        else:
+            cuenta = 'otro'
+        acumular_total_por_cuenta(totales, cuenta, subtotal)
+    return normalizar_totales_por_cuenta(totales)
+
+
+def obtener_totales_ingreso_por_cuenta(items):
+    totales = {}
+    for item in items:
+        subtotal = round(abs(float(getattr(item, 'subtotal', 0.0) or 0.0)), 2)
+        if subtotal <= _REPARTO_TOLERANCIA:
+            continue
+        producto = getattr(item, 'producto', None)
+        cuenta = obtener_cuenta_producto(producto, 'compra') if producto else 'compra_mercaderia'
+        acumular_total_por_cuenta(totales, cuenta, subtotal)
+    return normalizar_totales_por_cuenta(totales)
+
+
+def _saldo_agrupado_query(modelo, entidad_col, filtro_ids=None):
+    saldo_expr = func.coalesce(
+        func.sum(
+            case(
+                (modelo.tipo == 'cargo', modelo.monto),
+                else_=-modelo.monto,
+            )
+        ),
+        0.0,
+    )
+    query = db.session.query(entidad_col, saldo_expr.label('saldo')).group_by(entidad_col)
+    if filtro_ids is not None:
+        ids = [int(item_id) for item_id in filtro_ids if item_id is not None]
+        if not ids:
+            return []
+        query = query.filter(entidad_col.in_(ids))
+    return query.all()
+
+
+def obtener_saldos_clientes(cliente_ids=None):
+    rows = _saldo_agrupado_query(
+        ClienteCuentaCorrienteMovimiento,
+        ClienteCuentaCorrienteMovimiento.cliente_id,
+        filtro_ids=cliente_ids,
+    )
+    return {cliente_id: round(float(saldo or 0.0), 2) for cliente_id, saldo in rows}
+
+
+def obtener_saldos_proveedores(proveedor_ids=None):
+    rows = _saldo_agrupado_query(
+        ProveedorCuentaCorrienteMovimiento,
+        ProveedorCuentaCorrienteMovimiento.proveedor_id,
+        filtro_ids=proveedor_ids,
+    )
+    return {proveedor_id: round(float(saldo or 0.0), 2) for proveedor_id, saldo in rows}
+
+
+def obtener_saldos_tecnicos(tecnico_ids=None):
+    rows = _saldo_agrupado_query(
+        TecnicoCuentaCorrienteMovimiento,
+        TecnicoCuentaCorrienteMovimiento.tecnico_id,
+        filtro_ids=tecnico_ids,
+    )
+    return {tecnico_id: round(float(saldo or 0.0), 2) for tecnico_id, saldo in rows}
+
+
+def registrar_movimiento_cuenta_corriente(
+    cliente_id,
+    tipo,
+    monto,
+    concepto,
+    cuenta='otro',
+    referencia_tipo=None,
+    referencia_id=None,
+    fecha=None,
+):
+    if not cliente_id:
+        return None
+    if tipo not in ('cargo', 'abono'):
+        raise ValueError('Tipo de movimiento de cuenta corriente inválido.')
+
+    monto_val = round(float(monto or 0.0), 2)
+    if monto_val <= 0:
+        raise ValueError('El monto de cuenta corriente debe ser mayor que cero.')
+
+    mov = ClienteCuentaCorrienteMovimiento(
+        cliente_id=int(cliente_id),
+        tipo=tipo,
+        concepto=(concepto or '').strip() or 'Movimiento de cuenta corriente',
+        monto=monto_val,
+        cuenta=(cuenta or 'otro').strip() or 'otro',
+        referencia_tipo=referencia_tipo,
+        referencia_id=referencia_id,
+        fecha=fecha or datetime.now(),
+    )
+    db.session.add(mov)
+    return mov
+
+
+def registrar_movimiento_cc_proveedor(
+    proveedor_id,
+    tipo,
+    monto,
+    concepto,
+    cuenta='otro',
+    referencia_tipo=None,
+    referencia_id=None,
+    fecha=None,
+):
+    if not proveedor_id:
+        return None
+    if tipo not in ('cargo', 'abono'):
+        raise ValueError('Tipo de movimiento de cuenta corriente de proveedor inválido.')
+
+    monto_val = round(float(monto or 0.0), 2)
+    if monto_val <= 0:
+        raise ValueError('El monto de cuenta corriente de proveedor debe ser mayor que cero.')
+
+    mov = ProveedorCuentaCorrienteMovimiento(
+        proveedor_id=int(proveedor_id),
+        tipo=tipo,
+        concepto=(concepto or '').strip() or 'Movimiento de cuenta corriente de proveedor',
+        monto=monto_val,
+        cuenta=(cuenta or 'otro').strip() or 'otro',
+        referencia_tipo=referencia_tipo,
+        referencia_id=referencia_id,
+        fecha=fecha or datetime.now(),
+    )
+    db.session.add(mov)
+    return mov
+
+
+def registrar_movimiento_cc_tecnico(
+    tecnico_id,
+    tipo,
+    monto,
+    concepto,
+    cuenta='tecnicos',
+    forma_pago='cuenta_corriente',
+    referencia_tipo=None,
+    referencia_id=None,
+    fecha=None,
+):
+    if not tecnico_id:
+        return None
+    if tipo not in ('cargo', 'abono'):
+        raise ValueError('Tipo de movimiento de cuenta corriente de técnico inválido.')
+
+    monto_val = round(float(monto or 0.0), 2)
+    if monto_val <= 0:
+        raise ValueError('El monto de cuenta corriente de técnico debe ser mayor que cero.')
+
+    mov = TecnicoCuentaCorrienteMovimiento(
+        tecnico_id=int(tecnico_id),
+        tipo=tipo,
+        concepto=(concepto or '').strip() or 'Movimiento de cuenta corriente de técnico',
+        monto=monto_val,
+        cuenta=(cuenta or 'tecnicos').strip() or 'tecnicos',
+        forma_pago=(forma_pago or 'cuenta_corriente').strip() or 'cuenta_corriente',
+        referencia_tipo=referencia_tipo,
+        referencia_id=referencia_id,
+        fecha=fecha or datetime.now(),
+    )
+    db.session.add(mov)
+    return mov
+
+
+def sincronizar_movimientos_contables_automaticos():
+
+    for venta in Venta.query.all():
+        movimientos = MovimientoCaja.query.filter_by(
+            referencia_tipo='venta',
+            referencia_id=venta.id,
+        ).order_by(MovimientoCaja.fecha.asc(), MovimientoCaja.id.asc()).all()
+        totales = {} if venta.forma_pago == 'cuenta_corriente' else obtener_totales_venta_por_cuenta(venta.items)
+        tipo_mov = 'egreso' if venta.tipo_comprobante == 'NOTA_CREDITO' else 'ingreso'
+        existentes = normalizar_totales_por_cuenta({m.cuenta: float(m.monto or 0.0) for m in movimientos})
+        if not totales:
+            for movimiento in movimientos:
+                db.session.delete(movimiento)
+            continue
+        if movimientos and existentes == totales and all(m.tipo == tipo_mov for m in movimientos):
+            continue
+        fecha = movimientos[0].fecha if movimientos else venta.fecha or venta.created_at or datetime.now()
+        forma_pago = movimientos[0].forma_pago if movimientos else venta.forma_pago
+        for movimiento in movimientos:
+            db.session.delete(movimiento)
+        for cuenta, monto in totales.items():
+            concepto = f'{venta.tipo_display} {venta.numero_display}'
+            if venta.cliente:
+                concepto = f'{concepto} - {venta.cliente.nombre_completo}'
+            db.session.add(MovimientoCaja(
+                tipo=tipo_mov,
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=concepto,
+                monto=monto,
+                referencia_tipo='venta',
+                referencia_id=venta.id,
+                fecha=fecha,
+            ))
+
+    for taller in Taller.query.all():
+        movimientos = MovimientoCaja.query.filter_by(
+            referencia_tipo='taller',
+            referencia_id=taller.id,
+        ).order_by(MovimientoCaja.fecha.asc(), MovimientoCaja.id.asc()).all()
+        totales = {}
+        if taller.pagado and (taller.forma_pago or 'efectivo') != 'cuenta_corriente':
+            totales = obtener_totales_taller_por_cuenta(taller)
+        existentes = normalizar_totales_por_cuenta({m.cuenta: float(m.monto or 0.0) for m in movimientos})
+        if not totales:
+            for movimiento in movimientos:
+                db.session.delete(movimiento)
+            continue
+        if movimientos and existentes == totales and all(m.tipo == 'ingreso' for m in movimientos):
+            continue
+        fecha = movimientos[0].fecha if movimientos else taller.fecha_entrega or taller.fecha_ingreso or taller.created_at or datetime.now()
+        forma_pago = movimientos[0].forma_pago if movimientos else taller.forma_pago
+        nombre_cliente = taller.cliente.nombre_completo if taller.cliente else f'Cliente #{taller.cliente_id}'
+        for movimiento in movimientos:
+            db.session.delete(movimiento)
+        for cuenta, monto in totales.items():
+            db.session.add(MovimientoCaja(
+                tipo='ingreso',
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=f'Reparación #{taller.numero} - {nombre_cliente}',
+                monto=monto,
+                referencia_tipo='taller',
+                referencia_id=taller.id,
+                fecha=fecha,
+            ))
+
+    for ingreso in IngresoMercaderia.query.all():
+        movimientos = MovimientoCaja.query.filter_by(
+            referencia_tipo='ingreso_mercaderia',
+            referencia_id=ingreso.id,
+        ).order_by(MovimientoCaja.fecha.asc(), MovimientoCaja.id.asc()).all()
+        totales = {}
+        if (ingreso.forma_pago or 'efectivo') != 'cuenta_corriente':
+            totales = obtener_totales_ingreso_por_cuenta(ingreso.items)
+        existentes = normalizar_totales_por_cuenta({m.cuenta: float(m.monto or 0.0) for m in movimientos})
+        if not totales:
+            for movimiento in movimientos:
+                db.session.delete(movimiento)
+            continue
+        if movimientos and existentes == totales and all(m.tipo == 'egreso' for m in movimientos):
+            continue
+        fecha = movimientos[0].fecha if movimientos else ingreso.fecha or ingreso.created_at or datetime.now()
+        forma_pago = movimientos[0].forma_pago if movimientos else ingreso.forma_pago
+        for movimiento in movimientos:
+            db.session.delete(movimiento)
+        for cuenta, monto in totales.items():
+            db.session.add(MovimientoCaja(
+                tipo='egreso',
+                cuenta=cuenta,
+                forma_pago=forma_pago,
+                concepto=f'Ingreso de Mercadería #{ingreso.id}',
+                monto=monto,
+                referencia_tipo='ingreso_mercaderia',
+                referencia_id=ingreso.id,
+                fecha=fecha,
+            ))
+
+    db.session.commit()

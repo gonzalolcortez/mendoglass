@@ -12,6 +12,7 @@ caja_bp = Blueprint('caja', __name__)
 def index():
     today = date.today().strftime('%Y-%m-%d')
     forma_pago_filter = request.args.get('forma_pago', '')
+    referencia_filter = request.args.get('referencia', '').strip()
 
     # Si se filtra por forma de pago desde las tarjetas, no aplicar fecha por defecto
     if forma_pago_filter:
@@ -39,6 +40,8 @@ def index():
         query = query.filter_by(tipo=tipo)
     if forma_pago_filter:
         query = query.filter_by(forma_pago=forma_pago_filter)
+    if referencia_filter == 'tecnico_cc':
+        query = query.filter_by(referencia_tipo='tecnico_cc')
 
     movimientos = query.order_by(MovimientoCaja.fecha.desc()).all()
 
@@ -72,6 +75,7 @@ def index():
                            fecha_hasta=fecha_hasta,
                            tipo=tipo,
                            forma_pago_filter=forma_pago_filter,
+                           referencia_filter=referencia_filter,
                            saldos_fp=saldos_fp,
                            formas_pago=FORMAS_PAGO,
                            cuentas_caja=CUENTAS_CAJA)
@@ -102,7 +106,7 @@ def nuevo():
 @login_required
 def eliminar(id):
     mov = MovimientoCaja.query.get_or_404(id)
-    if mov.referencia_tipo in ('taller', 'venta'):
+    if mov.referencia_tipo in ('taller', 'venta', 'tecnico_cc'):
         flash('No se puede eliminar un movimiento generado automáticamente.', 'danger')
         return redirect(url_for('caja.index'))
     db.session.delete(mov)
