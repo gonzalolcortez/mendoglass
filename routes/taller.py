@@ -51,8 +51,56 @@ def index():
         db.case((db.and_(Taller.estado == 'entregado', Taller.pagado.is_(False)), 0), else_=1),
         Taller.created_at.desc()
     ).all()
+
+    # --- Indicadores globales (KPIs) ---
+    _counts = dict(
+        db.session.query(Taller.estado, db.func.count(Taller.id))
+        .group_by(Taller.estado).all()
+    )
+    _deuda_count = db.session.query(db.func.count(Taller.id))\
+        .filter(Taller.estado == 'entregado', Taller.pagado.is_(False)).scalar() or 0
+    # Reutilizar talleres si no hay filtro activo para evitar doble query
+    if not estado and not q:
+        _todos = talleres
+    else:
+        _todos = Taller.query.options(
+            selectinload(Taller.productos_usados).joinedload(TallerProducto.producto),
+            selectinload(Taller.servicios_usados),
+        ).all()
+    # Entregadas con deuda real (tienen monto > 0 y no están pagadas)
+    entregados_con_deuda = [
+        t for t in _todos
+        if t.estado == 'entregado' and not t.pagado and t.total_final > 0
+    ]
+    # Entregadas sin cargo (sin reparación, total == 0)
+    entregados_sin_cargo = [
+        t for t in _todos
+        if t.estado == 'entregado' and t.total_final == 0
+    ]
+    # En proceso
+    en_proceso = [
+        t for t in _todos
+        if t.estado in ('recibido', 'diagnostico', 'en_reparacion')
+    ]
+    # Listos para retirar
+    listos = [t for t in _todos if t.estado == 'listo']
+
+    kpi = {
+        'total':      len(_todos),
+        'activos':    len(en_proceso),
+        'listos':     len(listos),
+        'deuda':      len(entregados_con_deuda),
+        'sin_cargo':  len(entregados_sin_cargo),
+        'cobrado':    sum(t.total_final for t in _todos if t.pagado),
+        'pendiente':  sum(t.total_final for t in entregados_con_deuda),
+    }
+
     return render_template('taller/index.html', talleres=talleres, estados=ESTADOS,
-                           estado_filtro=estado, q=q)
+                           estado_filtro=estado, q=q, kpi=kpi,
+                           entregados_con_deuda=entregados_con_deuda,
+                           entregados_sin_cargo=entregados_sin_cargo,
+                           en_proceso=en_proceso,
+                           listos=listos)
 
 
 @taller_bp.route('/nuevo', methods=['GET', 'POST'])

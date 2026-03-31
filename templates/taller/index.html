@@ -9,6 +9,206 @@
 {% endblock %}
 
 {% block content %}
+<!-- Panel de Indicadores -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ kpi.total }}</div>
+        <div class="small text-muted">Total órdenes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-warning shadow-sm h-100 {% if en_proceso %}kpi-toggle{% endif %}"
+         {% if en_proceso %}style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#tabla-en-proceso"{% endif %}>
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-warning">{{ kpi.activos }}</div>
+        <div class="small text-muted">En proceso {% if en_proceso %}<i class="bi bi-chevron-down ms-1 small"></i>{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center shadow-sm h-100 {% if listos %}kpi-toggle{% endif %}"
+         style="border-color:#198754 !important;{% if listos %}cursor:pointer{% endif %}"
+         {% if listos %}data-bs-toggle="collapse" data-bs-target="#tabla-listos"{% endif %}>
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold" style="color:#198754">{{ kpi.listos }}</div>
+        <div class="small text-muted">Listas p/retirar {% if listos %}<i class="bi bi-chevron-down ms-1 small"></i>{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-danger shadow-sm h-100 {% if entregados_con_deuda %}kpi-toggle{% endif %}"
+         {% if entregados_con_deuda %}style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#tabla-deuda"{% endif %}>
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-danger">{{ kpi.deuda }}</div>
+        <div class="small text-muted">Con deuda {% if entregados_con_deuda %}<i class="bi bi-chevron-down ms-1 small"></i>{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-secondary shadow-sm h-100 {% if entregados_sin_cargo %}kpi-toggle{% endif %}"
+         {% if entregados_sin_cargo %}style="cursor:pointer" data-bs-toggle="collapse" data-bs-target="#tabla-sin-cargo"{% endif %}>
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-secondary">{{ kpi.sin_cargo }}</div>
+        <div class="small text-muted">Sin cargo {% if entregados_sin_cargo %}<i class="bi bi-chevron-down ms-1 small"></i>{% endif %}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold" style="color:#198754">${{ "%.0f"|format(kpi.cobrado) }}</div>
+        <div class="small text-muted">Total cobrado</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-xl-2">
+    <div class="card text-center border-0 shadow-sm h-100">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-danger">${{ "%.0f"|format(kpi.pendiente) }}</div>
+        <div class="small text-muted">Deuda pendiente</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabla: En proceso (colapsable) -->
+{% if en_proceso %}
+<div class="collapse mb-3" id="tabla-en-proceso" style="display:none">
+  <div class="card border-warning">
+    <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center py-2">
+      <span><i class="bi bi-wrench me-2"></i><strong>Órdenes en proceso</strong></span>
+      <span class="badge bg-dark text-white">{{ en_proceso|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr><th>#</th><th>Cliente</th><th>Equipo</th><th>Problema</th><th>Ingreso</th><th>Estado</th><th>Técnico</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for t in en_proceso %}
+        <tr>
+          <td class="fw-bold text-warning">#{{ t.numero }}</td>
+          <td>{{ t.cliente.nombre_completo }}</td>
+          <td>{{ t.tipo_equipo }} <span class="text-muted">{{ t.marca }} {{ t.modelo }}</span></td>
+          <td class="small" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.descripcion_problema }}</td>
+          <td class="small">{{ t.fecha_ingreso.strftime('%d/%m/%Y') }}</td>
+          <td><span class="badge badge-{{ t.estado }}">{{ t.estado_display }}</span></td>
+          <td class="small text-muted">{{ t.tecnico or '—' }}</td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-warning py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabla: Listas para retirar (colapsable) -->
+{% if listos %}
+<div class="collapse mb-3" id="tabla-listos" style="display:none">
+  <div class="card" style="border-color:#198754">
+    <div class="card-header text-white d-flex justify-content-between align-items-center py-2" style="background:#198754">
+      <span><i class="bi bi-check-circle-fill me-2"></i><strong>Listas para retirar</strong></span>
+      <span class="badge bg-white text-success">{{ listos|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr><th>#</th><th>Cliente</th><th>Equipo</th><th>Ingreso</th><th>Est. entrega</th><th class="text-end">Total</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for t in listos %}
+        <tr>
+          <td class="fw-bold" style="color:#198754">#{{ t.numero }}</td>
+          <td>{{ t.cliente.nombre_completo }}</td>
+          <td>{{ t.tipo_equipo }} <span class="text-muted">{{ t.marca }} {{ t.modelo }}</span></td>
+          <td class="small">{{ t.fecha_ingreso.strftime('%d/%m/%Y') }}</td>
+          <td class="small">{{ t.fecha_estimada_entrega.strftime('%d/%m/%Y') if t.fecha_estimada_entrega else '—' }}</td>
+          <td class="fw-bold text-end">${{ "%.2f"|format(t.total_final) }}</td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-success py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabla: Órdenes con deuda (colapsable) -->
+{% if entregados_con_deuda %}
+<div class="collapse mb-3" id="tabla-deuda" style="display:none">
+  <div class="card border-danger">
+    <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center py-2">
+      <span><i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Órdenes entregadas con deuda pendiente</strong></span>
+      <span class="badge bg-white text-danger">{{ entregados_con_deuda|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr><th>#</th><th>Cliente</th><th>Equipo</th><th>Entrega</th><th class="text-end">Deuda</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for t in entregados_con_deuda %}
+        <tr>
+          <td class="fw-bold text-danger">#{{ t.numero }}</td>
+          <td>{{ t.cliente.nombre_completo }}</td>
+          <td>{{ t.tipo_equipo }} <span class="text-muted">{{ t.marca }} {{ t.modelo }}</span></td>
+          <td class="small">{{ (t.fecha_entrega or t.created_at).strftime('%d/%m/%Y') }}</td>
+          <td class="fw-bold text-danger text-end">${{ "%.2f"|format(t.total_final) }}</td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-danger py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot class="table-light">
+          <tr>
+            <td colspan="4" class="text-end fw-semibold">Total pendiente:</td>
+            <td class="fw-bold text-danger text-end">${{ "%.2f"|format(kpi.pendiente) }}</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Tabla: Entregadas sin cargo (colapsable) -->
+{% if entregados_sin_cargo %}
+<div class="collapse mb-3" id="tabla-sin-cargo" style="display:none">
+  <div class="card border-secondary">
+    <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center py-2">
+      <span><i class="bi bi-box-arrow-right me-2"></i><strong>Entregadas sin reparación / sin cargo</strong></span>
+      <span class="badge bg-white text-secondary">{{ entregados_sin_cargo|length }}</span>
+    </div>
+    <div class="card-body p-0">
+      <table class="table table-sm mb-0">
+        <thead class="table-light">
+          <tr><th>#</th><th>Cliente</th><th>Equipo</th><th>Problema</th><th>Ingreso</th><th>Entrega</th><th></th></tr>
+        </thead>
+        <tbody>
+        {% for t in entregados_sin_cargo %}
+        <tr class="text-muted">
+          <td class="fw-bold">#{{ t.numero }}</td>
+          <td>{{ t.cliente.nombre_completo }}</td>
+          <td>{{ t.tipo_equipo }} {{ t.marca }} {{ t.modelo }}</td>
+          <td class="small" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ t.descripcion_problema }}</td>
+          <td class="small">{{ t.fecha_ingreso.strftime('%d/%m/%Y') }}</td>
+          <td class="small">{{ (t.fecha_entrega or t.created_at).strftime('%d/%m/%Y') }}</td>
+          <td><a href="{{ url_for('taller.detalle', id=t.id) }}" class="btn btn-sm btn-outline-secondary py-0 px-2">Ver</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Filtros -->
 <div class="d-flex gap-2 flex-wrap mb-3 align-items-center">
   <form method="get" class="d-flex gap-2">
