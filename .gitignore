@@ -19,3 +19,6 @@ instance/
 .env
 .env.*
 *.env.local
+
+# macOS
+.DS_Store
