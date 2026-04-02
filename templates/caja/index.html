@@ -9,6 +9,18 @@
 {% endblock %}
 
 {% block content %}
+<div class="d-flex gap-2 mb-3">
+  <a href="{{ url_for('caja.index', vista='caja', forma_pago=forma_pago_filter, referencia=referencia_filter, fecha_desde=fecha_desde, fecha_hasta=fecha_hasta, tipo=tipo) }}"
+     class="btn btn-sm {% if vista == 'caja' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    <i class="bi bi-cash-coin me-1"></i>Movimientos de Caja
+  </a>
+  <a href="{{ url_for('caja.index', vista='cuentas_corrientes', fecha_desde=fecha_desde, fecha_hasta=fecha_hasta) }}"
+     class="btn btn-sm {% if vista == 'cuentas_corrientes' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+    <i class="bi bi-journal-text me-1"></i>Movimientos Cuentas Corrientes
+  </a>
+</div>
+
+{% if vista == 'caja' %}
 <!-- Resumen totales -->
 <div class="row g-3 mb-3">
   <div class="col-sm-4">
@@ -77,11 +89,11 @@
 
   <div class="mt-3 d-flex flex-wrap gap-2">
     <a href="{{ url_for('caja.index', referencia='tecnico_cc', forma_pago=forma_pago_filter) }}" class="btn btn-sm {% if referencia_filter == 'tecnico_cc' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-      <i class="bi bi-person-gear me-1"></i>Solo movimientos de Técnicos
+      <i class="bi bi-person-gear me-1"></i>Solo movimientos de Personal
     </a>
     {% if referencia_filter == 'tecnico_cc' %}
     <a href="{{ url_for('caja.index', forma_pago=forma_pago_filter) }}" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-x-circle me-1"></i>Quitar filtro de Técnicos
+      <i class="bi bi-x-circle me-1"></i>Quitar filtro de Personal
     </a>
     {% endif %}
   </div>
@@ -99,7 +111,7 @@
   {% if referencia_filter == 'tecnico_cc' %}
   <div class="mb-2">
     <span class="badge" style="background:#cffafe;color:#0f766e;font-size:.85rem">
-      <i class="bi bi-person-gear me-1"></i>Solo movimientos automáticos de técnicos
+      <i class="bi bi-person-gear me-1"></i>Solo movimientos automáticos de personal
     </span>
   </div>
   {% endif %}
@@ -140,7 +152,7 @@
     <span class="fw-semibold">
       Movimientos
       {% if forma_pago_filter %}— {{ dict(formas_pago).get(forma_pago_filter, forma_pago_filter) }}{% endif %}
-      {% if referencia_filter == 'tecnico_cc' %}— Técnicos{% endif %}
+      {% if referencia_filter == 'tecnico_cc' %}— Personal{% endif %}
     </span>
     {% if fecha_desde or fecha_hasta %}
     <span class="text-muted small ms-2">
@@ -177,13 +189,20 @@
           <span class="small"><i class="bi bi-cart me-1"></i>Venta #{{ m.referencia_id }}</span>
         {% elif m.referencia_tipo == 'tecnico_cc' %}
           <a href="{{ url_for('tecnicos.detalle', id=m.referencia_id) }}" class="text-decoration-none small">
-            <i class="bi bi-person-gear me-1"></i>Técnico #{{ m.referencia_id }}
+            <i class="bi bi-person-gear me-1"></i>Personal #{{ m.referencia_id }}
           </a>
         {% else %}
           <span class="small text-muted">{{ dict(cuentas_caja).get(m.cuenta or 'otro', m.cuenta or '—') }}</span>
         {% endif %}
       </td>
-      <td class="small text-muted">{{ dict(formas_pago).get(m.forma_pago or 'efectivo', m.forma_pago or '—') }}</td>
+      <td class="small text-muted">
+        {% set fp = m.forma_pago or 'efectivo' %}
+        {% if fp in ['transferencia', 'transferencia_bancaria'] %}
+          Banco
+        {% else %}
+          {{ dict(formas_pago).get(fp, fp or '—') }}
+        {% endif %}
+      </td>
       <td>{{ m.concepto }}</td>
       <td class="text-end fw-bold {% if m.tipo == 'ingreso' %}text-success{% else %}text-danger{% endif %}">
         {% if m.tipo == 'egreso' %}-{% endif %}${{ "%.2f"|format(m.monto) }}
@@ -206,4 +225,99 @@
   </div>
   {% endif %}
 </div>
+{% else %}
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#d1fae5"><i class="bi bi-plus-circle" style="color:#059669"></i></div>
+        <div>
+          <div class="text-muted small">Cargos (deuda generada)</div>
+          <div class="fw-bold fs-5 text-danger">${{ "%.2f"|format(total_cargos_cc) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#dcfce7"><i class="bi bi-dash-circle" style="color:#16a34a"></i></div>
+        <div>
+          <div class="text-muted small">Abonos (pagos)</div>
+          <div class="fw-bold fs-5 text-success">${{ "%.2f"|format(total_abonos_cc) }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="card stat-card border-0 h-100">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="icon-wrap" style="background:#fef3c7"><i class="bi bi-journal-text" style="color:#b45309"></i></div>
+        <div>
+          <div class="text-muted small">Saldo pendiente</div>
+          <div class="fw-bold fs-5 {% if saldo_cc > 0 %}text-danger{% elif saldo_cc < 0 %}text-success{% else %}text-muted{% endif %}">
+            ${{ "%.2f"|format(saldo_cc) }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="form-card mb-3">
+  <form method="get" class="row g-2 align-items-end">
+    <input type="hidden" name="vista" value="cuentas_corrientes">
+    <div class="col-sm-4">
+      <label class="form-label small fw-semibold">Desde</label>
+      <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ fecha_desde }}">
+    </div>
+    <div class="col-sm-4">
+      <label class="form-label small fw-semibold">Hasta</label>
+      <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ fecha_hasta }}">
+    </div>
+    <div class="col-sm-4 d-flex gap-2">
+      <button class="btn btn-sm btn-secondary"><i class="bi bi-funnel"></i> Filtrar</button>
+      <a href="{{ url_for('caja.index', vista='cuentas_corrientes') }}" class="btn btn-sm btn-outline-secondary">Limpiar</a>
+    </div>
+  </form>
+</div>
+
+<div class="table-card">
+  {% if movimientos_cc %}
+  <table class="table table-hover">
+    <thead>
+      <tr><th>Fecha</th><th>Cliente</th><th>Tipo</th><th>Cuenta</th><th>Concepto</th><th class="text-end">Monto</th></tr>
+    </thead>
+    <tbody>
+    {% for m in movimientos_cc %}
+    <tr>
+      <td class="small text-muted">{{ m.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+      <td>
+        <a href="{{ url_for('clientes.detalle', id=m.cliente_id) }}" class="text-decoration-none small">
+          <i class="bi bi-person me-1"></i>{{ m.cliente.nombre_completo }}
+        </a>
+      </td>
+      <td>
+        {% if m.tipo == 'cargo' %}
+          <span class="badge" style="background:#fee2e2;color:#991b1b"><i class="bi bi-plus-lg me-1"></i>Cargo</span>
+        {% else %}
+          <span class="badge" style="background:#d1fae5;color:#065f46"><i class="bi bi-dash-lg me-1"></i>Abono</span>
+        {% endif %}
+      </td>
+      <td class="small text-muted">{{ dict(cuentas_caja).get(m.cuenta or 'otro', m.cuenta or '—') }}</td>
+      <td>{{ m.concepto }}</td>
+      <td class="text-end fw-bold {% if m.tipo == 'cargo' %}text-danger{% else %}text-success{% endif %}">
+        {% if m.tipo == 'cargo' %}+{% else %}-{% endif %}${{ "%.2f"|format(m.monto) }}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="p-5 text-center text-muted">
+    <i class="bi bi-journal-text fs-1 d-block mb-2"></i>Sin movimientos de cuentas corrientes en el período seleccionado.
+  </div>
+  {% endif %}
+</div>
+{% endif %}
 {% endblock %}

@@ -19,6 +19,7 @@ from models import (
     obtener_cuenta_producto,
     obtener_saldos_por_cuenta_desde_movimientos,
     distribuir_monto_entre_cuentas,
+    normalizar_forma_pago,
 )
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
@@ -170,7 +171,7 @@ def registrar_pago_cc(id):
         flash('Ingrese un monto válido para registrar el pago.', 'danger')
         return redirect(url_for('clientes.detalle', id=cliente.id))
 
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     formas_validas = dict(FORMAS_PAGO)
     if forma_pago not in formas_validas or forma_pago == 'cuenta_corriente':
         flash('Forma de pago inválida para registrar el pago.', 'danger')
@@ -331,7 +332,7 @@ def registrar_pago_cc_proveedor(id):
         flash('Ingrese un monto válido para registrar el pago al proveedor.', 'danger')
         return redirect(url_for('clientes.detalle_proveedor', id=proveedor.id))
 
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     formas_validas = dict(FORMAS_PAGO)
     if forma_pago not in formas_validas or forma_pago == 'cuenta_corriente':
         flash('Forma de pago inválida para registrar pago de proveedor.', 'danger')
@@ -404,8 +405,8 @@ def registrar_devolucion_proveedor(id):
         return redirect(url_for('clientes.detalle_proveedor', id=proveedor.id))
 
     total = round(cantidad * precio, 2)
-    modo = request.form.get('modo', 'cuenta_corriente')
-    if modo not in ('cuenta_corriente', 'efectivo', 'mercado_pago'):
+    modo = normalizar_forma_pago(request.form.get('modo', 'cuenta_corriente'), default='cuenta_corriente')
+    if modo not in ('cuenta_corriente', 'efectivo', 'mercado_pago', 'banco'):
         flash('Modo de devolución inválido.', 'danger')
         return redirect(url_for('clientes.detalle_proveedor', id=proveedor.id))
 

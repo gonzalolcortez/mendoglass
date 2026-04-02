@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required
-from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto, Servicio, MovimientoCaja, Tecnico, FORMAS_PAGO, CUENTAS_CAJA, Categoria, registrar_movimiento_cuenta_corriente, obtener_totales_taller_por_cuenta
+from models import db, Taller, TallerProducto, TallerServicio, Cliente, Producto, Servicio, MovimientoCaja, Tecnico, FORMAS_PAGO, CUENTAS_CAJA, Categoria, registrar_movimiento_cuenta_corriente, obtener_totales_taller_por_cuenta, normalizar_forma_pago
 from datetime import datetime
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -107,7 +107,7 @@ def index():
 @login_required
 def nuevo():
     clientes = Cliente.query.order_by(Cliente.apellido).all()
-    tecnicos = Tecnico.query.filter_by(activo=True).order_by(Tecnico.nombre).all()
+    tecnicos = Tecnico.query.filter_by(activo=True).order_by(Tecnico.apellido, Tecnico.nombre).all()
     tecnicos_nombres = [t.nombre_display for t in tecnicos]
     if request.method == 'POST':
         fecha_est = None
@@ -157,7 +157,7 @@ def detalle(id):
 def editar(id):
     taller = Taller.query.get_or_404(id)
     clientes = Cliente.query.order_by(Cliente.apellido).all()
-    tecnicos = Tecnico.query.filter_by(activo=True).order_by(Tecnico.nombre).all()
+    tecnicos = Tecnico.query.filter_by(activo=True).order_by(Tecnico.apellido, Tecnico.nombre).all()
     tecnicos_nombres = [t.nombre_display for t in tecnicos]
     if request.method == 'POST':
         fecha_est = taller.fecha_estimada_entrega
@@ -258,7 +258,7 @@ def entregar(id):
         flash('Esta orden ya fue entregada.', 'warning')
         return redirect(url_for('taller.detalle', id=id))
 
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     totales_por_cuenta = obtener_totales_taller_por_cuenta(taller)
     taller.estado = 'entregado'
     taller.forma_pago = forma_pago
@@ -305,7 +305,7 @@ def cobrar_deuda(id):
         flash('Esta orden ya fue pagada.', 'warning')
         return redirect(url_for('taller.detalle', id=id))
 
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     monto = taller.total_final
     totales_por_cuenta = obtener_totales_taller_por_cuenta(taller)
     taller.pagado = True

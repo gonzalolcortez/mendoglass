@@ -89,7 +89,7 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 | `ARCA_CERT_PATH` | Ruta al archivo de certificado (alternativa a `ARCA_CERT`) | `/etc/arca/cert.pem` |
 | `ARCA_KEY_PATH` | Ruta al archivo de clave (alternativa a `ARCA_KEY`) | `/etc/arca/key.pem` |
 | `ARCA_PROD` | `true` producción, otro valor homologación | `false` |
-| `FACTURA_EMISOR_RAZON_SOCIAL` | Razón social para impresión de factura | `URITIC SAS` |
+| `FACTURA_EMISOR_RAZON_SOCIAL` | Razón social para impresión de factura | `EMPRESA S.A.` |
 | `FACTURA_EMISOR_DIRECCION` | Domicilio comercial impreso en factura | `Av. Siempre Viva 123` |
 | `FACTURA_EMISOR_CONDICION_IVA` | Condición fiscal del emisor en factura | `Responsable Inscripto` |
 | `FACTURA_EMISOR_IIBB` | Número de Ingresos Brutos en factura | `901-123456-7` |
@@ -115,7 +115,7 @@ Sistema administrativo web para talleres de reparación de equipos electrónicos
 Para validar autenticación y conectividad con ARCA sin emitir comprobantes:
 
 ```bash
-ARCA_CUIT=30718185854 \
+ARCA_CUIT=20123456789 \
 ARCA_CERT_PATH="/ruta/al/certificado.crt" \
 ARCA_KEY_PATH="/ruta/a/la/clave.key" \
 ARCA_PROD=true \
@@ -129,7 +129,7 @@ Si la configuración es correcta, el script devuelve `AUTH_OK=true` y el último
 Para previsualizar una factura mínima sin emitirla:
 
 ```bash
-ARCA_CUIT=30718185854 \
+ARCA_CUIT=20123456789 \
 ARCA_CERT_PATH="/ruta/al/certificado.crt" \
 ARCA_KEY_PATH="/ruta/a/la/clave.key" \
 ARCA_PROD=true \
@@ -139,7 +139,7 @@ python scripts/arca_emitir_minima.py --tipo-cbte 6 --punto-vta 1 --importe-total
 Para emitir realmente, el script exige confirmación explícita:
 
 ```bash
-ARCA_CUIT=30718185854 \
+ARCA_CUIT=20123456789 \
 ARCA_CERT_PATH="/ruta/al/certificado.crt" \
 ARCA_KEY_PATH="/ruta/a/la/clave.key" \
 ARCA_PROD=true \
@@ -151,7 +151,7 @@ python scripts/arca_emitir_minima.py --tipo-cbte 6 --punto-vta 1 --importe-total
 Para listar los puntos de venta que WSFE informa como habilitados:
 
 ```bash
-ARCA_CUIT=30718185854 \
+ARCA_CUIT=20123456789 \
 ARCA_CERT_PATH="/ruta/al/certificado.crt" \
 ARCA_KEY_PATH="/ruta/a/la/clave.key" \
 ARCA_PROD=true \
@@ -161,7 +161,7 @@ python scripts/arca_puntos_venta.py --tipo-cbte 6
 Para además sondear un rango de puntos de venta con `CompUltimoAutorizado`:
 
 ```bash
-ARCA_CUIT=30718185854 \
+ARCA_CUIT=20123456789 \
 ARCA_CERT_PATH="/ruta/al/certificado.crt" \
 ARCA_KEY_PATH="/ruta/a/la/clave.key" \
 ARCA_PROD=true \

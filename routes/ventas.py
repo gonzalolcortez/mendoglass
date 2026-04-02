@@ -8,6 +8,7 @@ from flask_login import login_required
 from models import (
     db, Venta, VentaItem, Producto, Servicio, Cliente,
     MovimientoCaja, FORMAS_PAGO, Categoria, registrar_movimiento_cuenta_corriente,
+    normalizar_forma_pago,
     obtener_totales_venta_por_cuenta,
 )
 from datetime import datetime, date
@@ -25,7 +26,7 @@ ALICUOTAS_IVA = [
 
 # Condiciones de venta (forma de pago)
 CONDICIONES_VENTA = FORMAS_PAGO
-FORMAS_DEVOLUCION = [fp for fp in FORMAS_PAGO if fp[0] in ('efectivo', 'mercado_pago', 'cuenta_corriente')]
+FORMAS_DEVOLUCION = [fp for fp in FORMAS_PAGO if fp[0] in ('efectivo', 'mercado_pago', 'banco', 'cuenta_corriente')]
 
 # Map alicuota → AFIP iva_id
 _AFIP_IVA_ID = {0.0: 4, 10.5: 8, 21.0: 5, 27.0: 6}
@@ -94,27 +95,16 @@ def _datos_emisor_factura() -> dict:
             cuit_raw = ''
 
     cuit_digits = ''.join(ch for ch in cuit_raw if ch.isdigit())
-    defaults = {}
-    if cuit_digits == '30718185854':
-        defaults = {
-            'razon_social': 'URITIC S. A. S.',
-            'direccion': 'San Juan 721, Ciudad, Mendoza',
-            'condicion_iva': 'Responsable Inscripto',
-            'ingresos_brutos': '0951886',
-            'inicio_actividades': '01/07/2023',
-            'telefono': '+54 9 261 723-4524',
-            'email': 'info@uritic.com.ar',
-        }
 
     cuit = cuit_digits if cuit_digits else 'No configurado'
     return {
-        'razon_social': _env_first('FACTURA_EMISOR_RAZON_SOCIAL', 'ARCA_RAZON_SOCIAL', 'EMPRESA_NOMBRE') or defaults.get('razon_social') or 'Emisor no configurado',
-        'direccion': _env_first('FACTURA_EMISOR_DIRECCION', 'EMPRESA_DIRECCION') or defaults.get('direccion') or 'Dirección no configurada',
-        'condicion_iva': _env_first('FACTURA_EMISOR_CONDICION_IVA', 'EMPRESA_CONDICION_IVA') or defaults.get('condicion_iva') or 'Responsable Inscripto',
-        'ingresos_brutos': _env_first('FACTURA_EMISOR_IIBB', 'EMPRESA_IIBB') or defaults.get('ingresos_brutos') or 'No informado',
-        'inicio_actividades': _env_first('FACTURA_EMISOR_INICIO_ACTIVIDADES', 'EMPRESA_INICIO_ACTIVIDADES') or defaults.get('inicio_actividades') or 'No informado',
-        'telefono': _env_first('FACTURA_EMISOR_TELEFONO', 'EMPRESA_TELEFONO') or defaults.get('telefono') or '',
-        'email': _env_first('FACTURA_EMISOR_EMAIL', 'EMPRESA_EMAIL') or defaults.get('email') or '',
+        'razon_social': _env_first('FACTURA_EMISOR_RAZON_SOCIAL', 'ARCA_RAZON_SOCIAL', 'EMPRESA_NOMBRE') or 'Emisor no configurado',
+        'direccion': _env_first('FACTURA_EMISOR_DIRECCION', 'EMPRESA_DIRECCION') or 'Dirección no configurada',
+        'condicion_iva': _env_first('FACTURA_EMISOR_CONDICION_IVA', 'EMPRESA_CONDICION_IVA') or 'Condición IVA no configurada',
+        'ingresos_brutos': _env_first('FACTURA_EMISOR_IIBB', 'EMPRESA_IIBB') or 'No informado',
+        'inicio_actividades': _env_first('FACTURA_EMISOR_INICIO_ACTIVIDADES', 'EMPRESA_INICIO_ACTIVIDADES') or 'No informado',
+        'telefono': _env_first('FACTURA_EMISOR_TELEFONO', 'EMPRESA_TELEFONO') or '',
+        'email': _env_first('FACTURA_EMISOR_EMAIL', 'EMPRESA_EMAIL') or '',
         'cuit': cuit,
     }
 
@@ -365,7 +355,7 @@ def nueva_devolucion():
 @login_required
 def guardar_devolucion():
     cliente_id = request.form.get('cliente_id') or None
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     notas = request.form.get('notas', '').strip()
 
     if not cliente_id:
@@ -373,7 +363,7 @@ def guardar_devolucion():
         return redirect(url_for('ventas.nueva_devolucion'))
 
     if forma_pago not in dict(FORMAS_DEVOLUCION):
-        flash('Forma de devolución inválida. Use Efectivo, Mercado Pago o Cuenta Corriente.', 'danger')
+        flash('Forma de devolución inválida. Use Efectivo, Mercado Pago, Banco o Cuenta Corriente.', 'danger')
         return redirect(url_for('ventas.nueva_devolucion'))
 
     items_data = _parse_items_from_form()
@@ -489,7 +479,7 @@ def guardar():
     es_factura = tipo_comprobante == 'FACTURA'
     punto_venta = int(request.form.get('punto_venta', 1) or 1) if es_factura else None
     cliente_id = request.form.get('cliente_id') or None
-    forma_pago = request.form.get('forma_pago', 'efectivo')
+    forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     if forma_pago == 'cuenta_corriente' and not cliente_id:
         flash('Para vender en cuenta corriente debe seleccionar un cliente.', 'danger')
         return redirect(url_for('ventas.nueva'))
