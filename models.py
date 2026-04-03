@@ -28,6 +28,11 @@ class Tecnico(db.Model):
     __tablename__ = 'tecnicos'
     id = db.Column(db.Integer, primary_key=True)
     nombre = db.Column(db.String(150), nullable=False)
+    apellido = db.Column(db.String(150), nullable=False, default='')
+    dni_cuit = db.Column(db.String(30))
+    direccion = db.Column(db.String(200))
+    celular = db.Column(db.String(30))
+    actividades = db.Column(db.Text, default='')
     es_tercerizado = db.Column(db.Boolean, default=False)
     empresa_tercerizado = db.Column(db.String(150))
     activo = db.Column(db.Boolean, default=True)
@@ -38,11 +43,35 @@ class Tecnico(db.Model):
         cascade='all, delete-orphan',
     )
 
+    ACTIVIDADES_PREDEFINIDAS = [
+        ('tecnico', 'Técnico'),
+        ('administrativo', 'Administrativo'),
+        ('vendedor', 'Vendedor'),
+    ]
+
+    @property
+    def nombre_completo(self):
+        return ' '.join(part for part in [self.nombre, self.apellido] if part).strip()
+
     @property
     def nombre_display(self):
+        nombre_base = self.nombre_completo or self.nombre
         if self.es_tercerizado and self.empresa_tercerizado:
-            return f"Técnico Tercerizado - {self.empresa_tercerizado}"
-        return self.nombre
+            return f"{nombre_base} - {self.empresa_tercerizado}"
+        return nombre_base
+
+    @property
+    def actividades_lista(self):
+        return [item.strip() for item in (self.actividades or '').split(',') if item.strip()]
+
+    @property
+    def actividades_display(self):
+        return ', '.join(self.actividades_lista)
+
+    @property
+    def actividades_personalizadas(self):
+        predefinidas = {valor for valor, _ in self.ACTIVIDADES_PREDEFINIDAS}
+        return [actividad for actividad in self.actividades_lista if actividad not in predefinidas]
 
     @property
     def saldo_cuenta_corriente(self):
@@ -570,22 +599,36 @@ CUENTAS_CAJA = [
     ('venta_productos', 'Venta de Productos'),
     ('venta_repuestos', 'Venta de Repuestos'),
     ('servicio_tecnico', 'Servicio Técnico'),
-    ('tecnicos', 'Técnicos y Adelantos'),
+    ('tecnicos', 'Personal y Adelantos'),
     ('impuestos', 'Impuestos'),
     ('alquiler', 'Alquiler'),
-    ('matias', 'Matias'),
     ('compra_mercaderia', 'Compra de Mercadería'),
     ('compra_repuestos', 'Compra de Repuestos'),
     ('otro', 'Otro'),
 ]
+
+ACTIVIDADES_PERSONAL = Tecnico.ACTIVIDADES_PREDEFINIDAS
 
 # Formas de pago
 FORMAS_PAGO = [
     ('efectivo', 'Efectivo'),
     ('mercado_pago', 'Mercado Pago'),
     ('tarjeta', 'Tarjetas'),
-    ('cuenta_corriente', 'Cuenta Corriente'),
+    ('banco', 'Banco'),
+    ('cuenta_corriente', 'Cuentas Corrientes'),
 ]
+
+FORMAS_PAGO_ALIAS = {
+    'transferencia': 'banco',
+    'transferencia_bancaria': 'banco',
+}
+
+
+def normalizar_forma_pago(forma_pago, default='efectivo'):
+    valor = (forma_pago or '').strip().lower()
+    if not valor:
+        return default
+    return FORMAS_PAGO_ALIAS.get(valor, valor)
 
 
 _ORDEN_CUENTAS = [cuenta for cuenta, _ in CUENTAS_CAJA]
@@ -854,16 +897,16 @@ def registrar_movimiento_cc_tecnico(
     if not tecnico_id:
         return None
     if tipo not in ('cargo', 'abono'):
-        raise ValueError('Tipo de movimiento de cuenta corriente de técnico inválido.')
+        raise ValueError('Tipo de movimiento de cuenta corriente de personal inválido.')
 
     monto_val = round(float(monto or 0.0), 2)
     if monto_val <= 0:
-        raise ValueError('El monto de cuenta corriente de técnico debe ser mayor que cero.')
+        raise ValueError('El monto de cuenta corriente de personal debe ser mayor que cero.')
 
     mov = TecnicoCuentaCorrienteMovimiento(
         tecnico_id=int(tecnico_id),
         tipo=tipo,
-        concepto=(concepto or '').strip() or 'Movimiento de cuenta corriente de técnico',
+        concepto=(concepto or '').strip() or 'Movimiento de cuenta corriente de personal',
         monto=monto_val,
         cuenta=(cuenta or 'tecnicos').strip() or 'tecnicos',
         forma_pago=(forma_pago or 'cuenta_corriente').strip() or 'cuenta_corriente',

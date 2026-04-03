@@ -4,21 +4,62 @@
 
 {% block content %}
 <div class="row justify-content-center">
-  <div class="col-lg-6">
+  <div class="col-lg-8">
     <div class="form-card">
       <form method="post">
         <div class="row g-3">
-          <div class="col-12">
-            <label class="form-label fw-semibold">Nombre del Técnico *</label>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Nombre *</label>
             <input type="text" name="nombre" class="form-control" required
-                   value="{{ tecnico.nombre if tecnico else '' }}" placeholder="Ej: Juan Pérez">
+                   value="{{ tecnico.nombre if tecnico else '' }}" placeholder="Ej: Juan">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Apellido *</label>
+            <input type="text" name="apellido" class="form-control" required
+                   value="{{ tecnico.apellido if tecnico else '' }}" placeholder="Ej: Pérez">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">DNI / CUIT</label>
+            <input type="text" name="dni_cuit" class="form-control"
+                   value="{{ tecnico.dni_cuit if tecnico and tecnico.dni_cuit else '' }}" placeholder="Ej: 30111222333">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label fw-semibold">Celular</label>
+            <input type="text" name="celular" class="form-control"
+                   value="{{ tecnico.celular if tecnico and tecnico.celular else '' }}" placeholder="Ej: 2615551234">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Dirección</label>
+            <input type="text" name="direccion" class="form-control"
+                   value="{{ tecnico.direccion if tecnico and tecnico.direccion else '' }}" placeholder="Ej: San Martín 123, Mendoza">
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Actividades</label>
+            <div class="row g-2 mt-1">
+              {% set actividades_actuales = tecnico.actividades_lista if tecnico else [] %}
+              {% for val, label in actividades_disponibles %}
+              <div class="col-md-4">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="actividades" value="{{ val }}" id="actividad-{{ val }}"
+                         {% if val in actividades_actuales %}checked{% endif %}>
+                  <label class="form-check-label" for="actividad-{{ val }}">{{ label }}</label>
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label fw-semibold">Otra actividad</label>
+            <input type="text" name="actividad_personalizada" class="form-control"
+                   value="{{ '' if not tecnico else tecnico.actividades_personalizadas|join(', ') }}"
+                   placeholder="Ej: Compras, Logística, Atención al cliente">
           </div>
           <div class="col-12">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" id="esTercerizado" name="es_tercerizado" value="1"
                      {% if tecnico and tecnico.es_tercerizado %}checked{% endif %}
                      onchange="document.getElementById('rowEmpresa').style.display = this.checked ? '' : 'none'">
-              <label class="form-check-label fw-semibold" for="esTercerizado">Técnico Tercerizado</label>
+              <label class="form-check-label fw-semibold" for="esTercerizado">Personal tercerizado</label>
             </div>
           </div>
           <div class="col-12" id="rowEmpresa" style="{{ '' if (tecnico and tecnico.es_tercerizado) else 'display:none' }}">
@@ -26,7 +67,7 @@
             <input type="text" name="empresa_tercerizado" class="form-control"
                    value="{{ tecnico.empresa_tercerizado if tecnico and tecnico.empresa_tercerizado else '' }}"
                    placeholder="Ej: Technocell">
-            <div class="form-text">Se mostrará como: Técnico Tercerizado - [Empresa]</div>
+            <div class="form-text">Se mostrará dentro del registro de personal como dato adicional.</div>
           </div>
         </div>
         <div class="d-flex gap-2 mt-4">

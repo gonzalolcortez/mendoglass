@@ -7,7 +7,7 @@
   <i class="bi bi-pencil me-1"></i>Editar
 </a>
 <form method="post" action="{{ url_for('tecnicos.eliminar', id=tecnico.id) }}" class="d-inline"
-      onsubmit="return confirm('¿Cambiar estado de este técnico?')">
+  onsubmit="return confirm('¿Cambiar estado de este registro de personal?')">
   <button class="btn btn-sm {% if tecnico.activo %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
     <i class="bi {% if tecnico.activo %}bi-person-dash{% else %}bi-person-check{% endif %} me-1"></i>
     {% if tecnico.activo %}Desactivar{% else %}Activar{% endif %}
@@ -26,14 +26,27 @@
         </div>
         <h5 class="mt-2 mb-0">{{ tecnico.nombre_display }}</h5>
         <small class="text-muted">
-          {% if tecnico.es_tercerizado %}Técnico tercerizado{% else %}Técnico propio{% endif %}
+          {% if tecnico.es_tercerizado %}Personal tercerizado{% else %}Personal interno{% endif %}
         </small>
       </div>
       <hr>
+      <div class="mb-2"><i class="bi bi-card-text me-2 text-muted"></i>{{ tecnico.dni_cuit or 'Sin DNI/CUIT' }}</div>
+      <div class="mb-2"><i class="bi bi-telephone me-2 text-muted"></i>{{ tecnico.celular or 'Sin celular cargado' }}</div>
+      <div class="mb-2"><i class="bi bi-geo-alt me-2 text-muted"></i>{{ tecnico.direccion or 'Sin dirección cargada' }}</div>
       <div class="mb-2"><i class="bi bi-building me-2 text-muted"></i>{{ tecnico.empresa_tercerizado or 'Sin empresa asociada' }}</div>
       <div class="mb-2">
         <i class="bi bi-person-badge me-2 text-muted"></i>
         {% if tecnico.activo %}Activo{% else %}Inactivo{% endif %}
+      </div>
+      <div class="mt-3">
+        <div class="small text-muted mb-1">Actividades</div>
+        {% if tecnico.actividades_lista %}
+          {% for actividad in tecnico.actividades_lista %}
+          <span class="badge bg-light text-dark border me-1 mb-1">{{ dict(actividades_disponibles).get(actividad, actividad) }}</span>
+          {% endfor %}
+        {% else %}
+          <span class="text-muted small">Sin actividades asignadas.</span>
+        {% endif %}
       </div>
     </div>
 
@@ -48,12 +61,12 @@
         <span class="badge bg-secondary">Saldo $0.00</span>
         {% endif %}
       </div>
-      <p class="text-muted small mb-3">Registrá adelantos, retiro de mercadería/repuestos o devoluciones. Cada movimiento impacta la cuenta corriente del técnico y Contabilidad.</p>
+      <p class="text-muted small mb-3">Registrá adelantos, retiro de mercadería/repuestos o devoluciones. Cada movimiento impacta la cuenta corriente del personal y Contabilidad.</p>
       <form method="post" action="{{ url_for('tecnicos.registrar_movimiento', id=tecnico.id) }}" class="row g-2">
         <div class="col-6">
           <label class="form-label small fw-semibold">Movimiento</label>
           <select name="tipo" class="form-select form-select-sm" required>
-            <option value="cargo">Cargo al técnico</option>
+            <option value="cargo">Cargo al personal</option>
             <option value="abono">Abono / devolución</option>
           </select>
         </div>
@@ -150,7 +163,7 @@
           </select>
         </div>
         <div class="col-12">
-          <div class="form-text" id="stockAyuda">Este movimiento impacta stock, cuenta corriente del técnico y caja/contabilidad.</div>
+          <div class="form-text" id="stockAyuda">Este movimiento impacta stock, cuenta corriente del personal y caja/contabilidad.</div>
         </div>
         <div class="col-12">
           <button class="btn btn-sm btn-outline-primary w-100">
@@ -189,7 +202,7 @@
         </tbody>
       </table>
       {% else %}
-      <div class="p-3 text-muted text-center small">Sin movimientos de cuenta corriente para este técnico.</div>
+      <div class="p-3 text-muted text-center small">Sin movimientos de cuenta corriente para este registro de personal.</div>
       {% endif %}
     </div>
   </div>
@@ -227,9 +240,9 @@
       const stock = opt ? Number(opt.dataset.stock || 0) : 0;
       const esRetiro = (tipo.value || 'cargo') === 'cargo';
       if (esRetiro) {
-        ayuda.textContent = 'Retiro: descuenta stock y genera cargo al técnico. Stock disponible: ' + stock + '.';
+        ayuda.textContent = 'Retiro: descuenta stock y genera cargo al personal. Stock disponible: ' + stock + '.';
       } else {
-        ayuda.textContent = 'Devolución: suma stock y genera abono al técnico.';
+        ayuda.textContent = 'Devolución: suma stock y genera abono al personal.';
       }
     }
 

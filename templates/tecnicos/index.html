@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
-{% block title %}Técnicos{% endblock %}
-{% block page_title %}Técnicos{% endblock %}
+{% block title %}Personal{% endblock %}
+{% block page_title %}Personal{% endblock %}
 
 {% block topbar_actions %}
 <a href="{{ url_for('tecnicos.nuevo') }}" class="btn btn-primary btn-sm">
-  <i class="bi bi-plus-lg me-1"></i>Nuevo Técnico
+  <i class="bi bi-plus-lg me-1"></i>Nuevo Personal
 </a>
 {% endblock %}
 
@@ -13,20 +13,30 @@
   {% if tecnicos %}
   <table class="table table-hover">
     <thead>
-      <tr><th>Nombre</th><th>Tipo</th><th>Empresa</th><th>Cuenta Corriente</th><th>Estado</th><th></th></tr>
+      <tr><th>Personal</th><th>DNI/CUIT</th><th>Actividades</th><th>Vínculo</th><th>Cuenta Corriente</th><th>Estado</th><th></th></tr>
     </thead>
     <tbody>
     {% for t in tecnicos %}
     <tr class="{% if not t.activo %}text-muted{% endif %}">
-      <td class="fw-semibold">{{ t.nombre }}</td>
+      <td>
+        <div class="fw-semibold">{{ t.nombre_completo or t.nombre }}</div>
+        <div class="small text-muted">{{ t.celular or 'Sin celular' }}</div>
+      </td>
+      <td>{{ t.dni_cuit or '—' }}</td>
+      <td>
+        {% if t.actividades_lista %}
+          {{ t.actividades_display }}
+        {% else %}
+          <span class="text-muted">Sin actividades</span>
+        {% endif %}
+      </td>
       <td>
         {% if t.es_tercerizado %}
         <span class="badge bg-warning text-dark">Tercerizado</span>
         {% else %}
-        <span class="badge bg-primary">Propio</span>
+        <span class="badge bg-primary">Interno</span>
         {% endif %}
       </td>
-      <td>{{ t.empresa_tercerizado or '—' }}</td>
       <td>
         {% if t.saldo_cc > 0 %}
         <span class="badge bg-danger">Debe ${{ '%.2f'|format(t.saldo_cc) }}</span>
@@ -61,7 +71,7 @@
   {% else %}
   <div class="p-5 text-center text-muted">
     <i class="bi bi-person-gear fs-1 d-block mb-2"></i>
-    No hay técnicos cargados. <a href="{{ url_for('tecnicos.nuevo') }}">Agregar el primero</a>.
+    No hay personal cargado. <a href="{{ url_for('tecnicos.nuevo') }}">Agregar el primero</a>.
   </div>
   {% endif %}
 </div>

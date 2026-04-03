@@ -10,6 +10,7 @@ __pycache__/
 *.pyo
 venv/
 .venv/
+venv311/
 
 # Flask / SQLite
 instance/
@@ -19,3 +20,6 @@ instance/
 .env
 .env.*
 *.env.local
+
+# macOS
+.DS_Store
