@@ -38,7 +38,7 @@
           <option value="todas" {% if entidad == 'todas' %}selected{% endif %}>Todas</option>
           <option value="clientes" {% if entidad == 'clientes' %}selected{% endif %}>Clientes</option>
           <option value="proveedores" {% if entidad == 'proveedores' %}selected{% endif %}>Proveedores</option>
-          <option value="tecnicos" {% if entidad == 'tecnicos' %}selected{% endif %}>Técnicos</option>
+          <option value="tecnicos" {% if entidad == 'tecnicos' %}selected{% endif %}>Personal</option>
         </select>
       </div>
       <div class="col-md-2 d-flex gap-2">
@@ -85,7 +85,7 @@
   <div class="col-md-4 col-xl-2">
     <div class="card stat-card border-0">
       <div class="card-body">
-        <div class="text-muted small mb-1">Técnicos que deben</div>
+        <div class="text-muted small mb-1">Personal que debe</div>
         <div class="fw-bold fs-5 text-danger">${{ '%.2f'|format(total_tecnicos_deuda) }}</div>
       </div>
     </div>
@@ -93,7 +93,7 @@
   <div class="col-md-4 col-xl-2">
     <div class="card stat-card border-0">
       <div class="card-body">
-        <div class="text-muted small mb-1">Técnicos a favor</div>
+        <div class="text-muted small mb-1">Personal a favor</div>
         <div class="fw-bold fs-5 text-success">${{ '%.2f'|format(total_tecnicos_a_favor) }}</div>
       </div>
     </div>
@@ -180,13 +180,13 @@
   <div class="col-lg-4">
     <div class="table-card">
       <div class="p-3 border-bottom fw-semibold">
-        <i class="bi bi-person-gear me-1"></i>Cuentas Corrientes de Técnicos
+        <i class="bi bi-person-gear me-1"></i>Cuentas Corrientes de Personal
       </div>
       {% if tecnicos_con_saldo %}
       <table class="table table-hover mb-0">
         <thead>
           <tr>
-            <th>Técnico</th>
+            <th>Personal</th>
             <th class="text-end">Saldo</th>
             <th></th>
           </tr>
@@ -210,7 +210,7 @@
         </tbody>
       </table>
       {% else %}
-      <div class="p-3 text-muted text-center small">Sin saldos pendientes de técnicos.</div>
+      <div class="p-3 text-muted text-center small">Sin saldos pendientes de personal.</div>
       {% endif %}
     </div>
   </div>
@@ -218,7 +218,7 @@
 
 <div class="table-card mt-4">
   <div class="p-3 border-bottom fw-semibold">
-    <i class="bi bi-clock-history me-1"></i>Movimientos Recientes (Clientes y Proveedores)
+    <i class="bi bi-clock-history me-1"></i>Movimientos Recientes
   </div>
   {% if recientes %}
   <table class="table table-hover mb-0">
@@ -238,8 +238,8 @@
         <td>
           {% if m.entidad_tipo == 'cliente' %}
           <span class="badge bg-primary">Cliente</span>
-          {% elif m.entidad_tipo == 'tecnico' %}
-          <span class="badge bg-info text-dark">Técnico</span>
+          {% elif m.entidad_tipo == 'personal' %}
+          <span class="badge bg-info text-dark">Personal</span>
           {% else %}
           <span class="badge bg-warning text-dark">Proveedor</span>
           {% endif %}

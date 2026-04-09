@@ -12,24 +12,24 @@ services:
       - key: TZ
         value: "America/Argentina/Buenos_Aires"
       - key: ARCA_CUIT
-        value: "30718185854"
+        value: ""
       - key: ARCA_CERT_PATH
-        value: "/opt/render/project/src/certs/URITIC SAS _703774b9a9652253.crt"
+        value: ""
       - key: ARCA_KEY_PATH
-        value: "/opt/render/project/src/certs/arca-homo-20260324-154804.key"
+        value: ""
       - key: ARCA_PROD
-        value: "true"
+        value: "false"
       - key: FACTURA_EMISOR_RAZON_SOCIAL
-        value: "URITIC SAS"
+        value: ""
       - key: FACTURA_EMISOR_DIRECCION
-        value: "San Juan 721, Ciudad, Mendoza"
+        value: ""
       - key: FACTURA_EMISOR_CONDICION_IVA
-        value: "Responsable Inscripto"
+        value: ""
       - key: FACTURA_EMISOR_IIBB
-        value: "0951886"
+        value: ""
       - key: FACTURA_EMISOR_INICIO_ACTIVIDADES
-        value: "01/07/2023"
+        value: ""
       - key: FACTURA_EMISOR_TELEFONO
-        value: "+54 9 261 723-4524"
+        value: ""
       - key: FACTURA_EMISOR_EMAIL
-        value: "info@uritic.com.ar"
+        value: ""

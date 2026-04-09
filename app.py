@@ -124,6 +124,40 @@ def _ensure_clientes_columns(app):
     )
 
 
+def _ensure_tecnicos_columns(app):
+    """Ensure legacy DBs have the columns required by the current Personal model."""
+    required_columns = {
+        'apellido': "VARCHAR(150) NOT NULL DEFAULT ''",
+        'dni_cuit': 'VARCHAR(30)',
+        'direccion': 'VARCHAR(200)',
+        'celular': 'VARCHAR(30)',
+        'actividades': "TEXT DEFAULT ''",
+    }
+
+    inspector = inspect(db.engine)
+    if not inspector.has_table('tecnicos'):
+        return
+
+    existing_columns = {c['name'] for c in inspector.get_columns('tecnicos')}
+    missing_columns = [
+        (name, ddl)
+        for name, ddl in required_columns.items()
+        if name not in existing_columns
+    ]
+
+    if not missing_columns:
+        return
+
+    with db.engine.begin() as conn:
+        for column_name, column_ddl in missing_columns:
+            conn.execute(text(f'ALTER TABLE tecnicos ADD COLUMN {column_name} {column_ddl}'))
+
+    app.logger.warning(
+        'Schema patched on startup: added missing tecnicos columns: %s',
+        ', '.join(name for name, _ in missing_columns),
+    )
+
+
 def _ensure_venta_items_columns(app):
     """Ensure legacy DBs have the columns required by the current VentaItem model."""
     required_columns = {
@@ -322,6 +356,7 @@ def create_app():
         try:
             _ensure_ventas_columns(app)
             _ensure_clientes_columns(app)
+            _ensure_tecnicos_columns(app)
             _ensure_venta_items_columns(app)
             _ensure_cuenta_corriente_columns(app)
             _ensure_cuenta_corriente_indexes(app)
@@ -354,17 +389,9 @@ def _init_db_with_retry(app, retries=5, delay=3):
 
 def _seed_default_user():
     from models import Usuario
-    if not Usuario.query.filter_by(username='Gonzalo').first():
-        u = Usuario(username='Gonzalo', nombre='Gonzalo')
-        u.set_password('1234')
-        db.session.add(u)
     if not Usuario.query.filter_by(username='Administrador').first():
         u = Usuario(username='Administrador', nombre='Administrador')
         u.set_password('010203')
-        db.session.add(u)
-    if not Usuario.query.filter_by(username='Matias').first():
-        u = Usuario(username='Matias', nombre='Matias')
-        u.set_password('Joel')
         db.session.add(u)
     db.session.commit()
 

@@ -50,7 +50,7 @@ def _build_cuentas_corrientes_context(args):
 
     clientes = Cliente.query.order_by(Cliente.apellido, Cliente.nombre).all()
     proveedores = Proveedor.query.order_by(Proveedor.apellido, Proveedor.nombre).all()
-    tecnicos = Tecnico.query.order_by(Tecnico.nombre).all()
+    tecnicos = Tecnico.query.order_by(Tecnico.apellido, Tecnico.nombre).all()
     saldos_clientes = obtener_saldos_clientes([cliente.id for cliente in clientes]) if clientes else {}
     saldos_proveedores = obtener_saldos_proveedores([proveedor.id for proveedor in proveedores]) if proveedores else {}
     saldos_tecnicos = obtener_saldos_tecnicos([tecnico.id for tecnico in tecnicos]) if tecnicos else {}
@@ -156,8 +156,8 @@ def _build_cuentas_corrientes_context(args):
         for m in movimientos_tec:
             recientes.append({
                 'fecha': m.fecha,
-                'entidad_tipo': 'tecnico',
-                'entidad_nombre': m.tecnico.nombre_display if m.tecnico else f'Técnico #{m.tecnico_id}',
+                'entidad_tipo': 'personal',
+                'entidad_nombre': m.tecnico.nombre_display if m.tecnico else f'Personal #{m.tecnico_id}',
                 'entidad_id': m.tecnico_id,
                 'tipo': m.tipo,
                 'concepto': m.concepto,
@@ -206,8 +206,8 @@ def _exportar_cuentas_corrientes_xlsx(contexto):
         estado = 'Debemos' if proveedor.saldo_cc > 0 else 'A favor'
         ws_proveedores.append([proveedor.id, proveedor.nombre_completo, estado, abs(proveedor.saldo_cc)])
 
-    ws_tecnicos = workbook.create_sheet('Tecnicos')
-    ws_tecnicos.append(['ID', 'Tecnico', 'Estado', 'Saldo'])
+    ws_tecnicos = workbook.create_sheet('Personal')
+    ws_tecnicos.append(['ID', 'Personal', 'Estado', 'Saldo'])
     for tecnico in contexto['tecnicos_con_saldo']:
         estado = 'Debe' if tecnico.saldo_cc > 0 else 'A favor'
         ws_tecnicos.append([tecnico.id, tecnico.nombre_display, estado, abs(tecnico.saldo_cc)])
@@ -242,8 +242,8 @@ def _exportar_cuentas_corrientes_pdf(contexto):
         ['Clientes a favor', f"${contexto['total_clientes_a_favor']:.2f}"],
         ['Deuda con proveedores', f"${contexto['total_proveedores_deuda']:.2f}"],
         ['Saldo a favor proveedores', f"${contexto['total_proveedores_a_favor']:.2f}"],
-        ['Tecnicos que deben', f"${contexto['total_tecnicos_deuda']:.2f}"],
-        ['Tecnicos a favor', f"${contexto['total_tecnicos_a_favor']:.2f}"],
+        ['Personal que debe', f"${contexto['total_tecnicos_deuda']:.2f}"],
+        ['Personal a favor', f"${contexto['total_tecnicos_a_favor']:.2f}"],
     ]
     tabla_resumen = Table(resumen_data, hAlign='LEFT', colWidths=[240, 120])
     tabla_resumen.setStyle(TableStyle([
@@ -282,8 +282,8 @@ def _exportar_cuentas_corrientes_pdf(contexto):
         story.extend([tabla, Spacer(1, 16)])
 
     if contexto['tecnicos_con_saldo']:
-        story.append(Paragraph('Tecnicos', styles['Heading2']))
-        data = [['Tecnico', 'Estado', 'Saldo']] + [
+        story.append(Paragraph('Personal', styles['Heading2']))
+        data = [['Personal', 'Estado', 'Saldo']] + [
             [t.nombre_display, 'Debe' if t.saldo_cc > 0 else 'A favor', f"${abs(t.saldo_cc):.2f}"]
             for t in contexto['tecnicos_con_saldo']
         ]

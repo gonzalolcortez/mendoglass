@@ -2,7 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required
 from models import (db, Producto, Servicio, Categoria, Proveedor,
                     IngresoMercaderia, IngresoMercaderiaItem, MovimientoCaja, FORMAS_PAGO,
-                    registrar_movimiento_cc_proveedor, obtener_totales_ingreso_por_cuenta)
+                    registrar_movimiento_cc_proveedor, obtener_totales_ingreso_por_cuenta,
+                    normalizar_forma_pago)
 from datetime import datetime
 from sqlalchemy.orm import joinedload
 from sqlalchemy import func
@@ -192,7 +193,7 @@ def nuevo_ingreso_mercaderia():
 
     if request.method == 'POST':
         proveedor_id = request.form.get('proveedor_id') or None
-        forma_pago = request.form.get('forma_pago', 'efectivo')
+        forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
         notas = request.form.get('notas', '').strip()
 
         if forma_pago == 'cuenta_corriente' and not proveedor_id:

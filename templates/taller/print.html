@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Orden #{{ taller.numero }} — Mendotecn</title>
+  <title>Orden #{{ taller.numero }} — MendozaGlass</title>
   <style>
     @page { size: A5; margin: 12mm; }
     * { box-sizing: border-box; }
@@ -63,9 +63,9 @@
 <!-- Header -->
 <div class="header">
   <div class="brand">
-    <h1>Mendotecn</h1>
-    <p>San Juan 721, Mendoza</p>
-    <p>WhatsApp: +54 9 2617 23-4524</p>
+    <h1>Empresa no configurada</h1>
+    <p>Dirección no configurada</p>
+    <p>Teléfono no configurado</p>
   </div>
   <div class="orden">
     <div class="num">Orden #{{ taller.numero }}</div>
@@ -111,7 +111,7 @@
     <div class="field"><label>Entrega estimada</label><span>{{ taller.fecha_estimada_entrega.strftime('%d/%m/%Y') }}</span></div>
     {% endif %}
     {% if taller.tecnico %}
-    <div class="field"><label>Técnico</label><span>{{ taller.tecnico }}</span></div>
+    <div class="field"><label>Personal asignado</label><span>{{ taller.tecnico }}</span></div>
     {% endif %}
     <div class="field"><label>Precio estimado</label><span>${{ "%.2f"|format(taller.costo_estimado) }}</span></div>
   </div>
@@ -170,9 +170,9 @@
 <!-- Footer -->
 <div class="footer">
   <div class="shop">
-    <strong>Mendotecn</strong><br>
-    San Juan 721, Mendoza<br>
-    WhatsApp: +54 9 2617 23-4524
+    <strong>Empresa no configurada</strong><br>
+    Dirección no configurada<br>
+    Teléfono no configurado
   </div>
   <div class="firma">
     Firma cliente: ___________________________<br><br>
