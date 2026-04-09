@@ -191,6 +191,36 @@ def nuevo_ingreso_mercaderia():
                        'stock_actual': p.stock_actual, 'codigo_barras': p.codigo_barras or ''}
                       for p in productos_obj]
 
+    # Historial filters (GET params)
+    tab = request.args.get('tab', 'nuevo')
+    filtro_proveedor = request.args.get('filtro_proveedor', '').strip()
+    filtro_fecha_desde = request.args.get('fecha_desde', '').strip()
+    filtro_fecha_hasta = request.args.get('fecha_hasta', '').strip()
+    filtro_forma_pago = request.args.get('filtro_forma_pago', '').strip()
+
+    ingresos_query = IngresoMercaderia.query
+    if filtro_proveedor:
+        try:
+            ingresos_query = ingresos_query.filter_by(proveedor_id=int(filtro_proveedor))
+        except ValueError:
+            filtro_proveedor = ''
+    if filtro_fecha_desde:
+        try:
+            fecha_desde_dt = datetime.strptime(filtro_fecha_desde, '%Y-%m-%d')
+            ingresos_query = ingresos_query.filter(IngresoMercaderia.fecha >= fecha_desde_dt)
+        except ValueError:
+            filtro_fecha_desde = ''
+    if filtro_fecha_hasta:
+        try:
+            fecha_hasta_dt = datetime.strptime(filtro_fecha_hasta, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            ingresos_query = ingresos_query.filter(IngresoMercaderia.fecha <= fecha_hasta_dt)
+        except ValueError:
+            filtro_fecha_hasta = ''
+    if filtro_forma_pago:
+        ingresos_query = ingresos_query.filter_by(forma_pago=filtro_forma_pago)
+
+    ingresos = ingresos_query.order_by(IngresoMercaderia.fecha.desc()).all()
+
     if request.method == 'POST':
         proveedor_id = request.form.get('proveedor_id') or None
         forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
@@ -201,7 +231,12 @@ def nuevo_ingreso_mercaderia():
             return render_template('productos/ingreso_mercaderia.html',
                                    productos=productos_json, proveedores=proveedores,
                                    formas_pago=FORMAS_PAGO,
-                                   categorias=Categoria.query.order_by(Categoria.nombre).all())
+                                   categorias=Categoria.query.order_by(Categoria.nombre).all(),
+                                   tab='nuevo', ingresos=ingresos,
+                                   filtro_proveedor=filtro_proveedor,
+                                   filtro_fecha_desde=filtro_fecha_desde,
+                                   filtro_fecha_hasta=filtro_fecha_hasta,
+                                   filtro_forma_pago=filtro_forma_pago)
 
         nombres = request.form.getlist('item_nombre[]')
         producto_ids = request.form.getlist('item_producto_id[]')
@@ -212,7 +247,13 @@ def nuevo_ingreso_mercaderia():
             flash('Debe agregar al menos un producto.', 'danger')
             return render_template('productos/ingreso_mercaderia.html',
                                    productos=productos_json, proveedores=proveedores,
-                                   formas_pago=FORMAS_PAGO)
+                                   formas_pago=FORMAS_PAGO,
+                                   categorias=Categoria.query.order_by(Categoria.nombre).all(),
+                                   tab='nuevo', ingresos=ingresos,
+                                   filtro_proveedor=filtro_proveedor,
+                                   filtro_fecha_desde=filtro_fecha_desde,
+                                   filtro_fecha_hasta=filtro_fecha_hasta,
+                                   filtro_forma_pago=filtro_forma_pago)
 
         ingreso = IngresoMercaderia(
             proveedor_id=proveedor_id,
@@ -299,12 +340,17 @@ def nuevo_ingreso_mercaderia():
             flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock actualizado y deuda cargada en cuenta corriente del proveedor.', 'success')
         else:
             flash(f'Ingreso de mercadería registrado por ${total:.2f}. Stock y caja actualizados.', 'success')
-        return redirect(url_for('productos.ingresos_mercaderia'))
+        return redirect(url_for('productos.nuevo_ingreso_mercaderia', tab='historial'))
 
     return render_template('productos/ingreso_mercaderia.html',
                            productos=productos_json, proveedores=proveedores,
                            formas_pago=FORMAS_PAGO,
-                           categorias=Categoria.query.order_by(Categoria.nombre).all())
+                           categorias=Categoria.query.order_by(Categoria.nombre).all(),
+                           tab=tab, ingresos=ingresos,
+                           filtro_proveedor=filtro_proveedor,
+                           filtro_fecha_desde=filtro_fecha_desde,
+                           filtro_fecha_hasta=filtro_fecha_hasta,
+                           filtro_forma_pago=filtro_forma_pago)
 
 
 # ── API: Crear producto desde modal ─────────────────────────────────────────

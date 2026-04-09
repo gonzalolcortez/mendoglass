@@ -10,6 +10,26 @@
 {% endblock %}
 
 {% block content %}
+<!-- Tab nav -->
+<ul class="nav nav-tabs mb-4" role="tablist">
+  <li class="nav-item" role="presentation">
+    <a class="nav-link {% if tab != 'historial' %}active{% endif %}"
+       href="{{ url_for('productos.nuevo_ingreso_mercaderia', tab='nuevo') }}">
+      <i class="bi bi-plus-circle me-1"></i>Nuevo Ingreso
+    </a>
+  </li>
+  <li class="nav-item" role="presentation">
+    <a class="nav-link {% if tab == 'historial' %}active{% endif %}"
+       href="{{ url_for('productos.nuevo_ingreso_mercaderia', tab='historial') }}">
+      <i class="bi bi-clock-history me-1"></i>Historial
+    </a>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+<!-- ── Pestaña: Nuevo Ingreso ─────────────────────────────────────────── -->
+<div class="tab-pane {% if tab != 'historial' %}show active{% endif %}" id="tab-nuevo">
 <form method="post" id="ingreso-form">
   <div class="row g-3">
     <!-- Columna izquierda: datos + items -->
@@ -114,11 +134,110 @@
         <button type="submit" class="btn btn-warning w-100" id="btn-confirmar" disabled>
           <i class="bi bi-check-circle me-1"></i>Confirmar Ingreso
         </button>
-        <a href="{{ url_for('productos.ingresos_mercaderia') }}" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
+        <a href="{{ url_for('productos.nuevo_ingreso_mercaderia', tab='nuevo') }}" class="btn btn-outline-secondary w-100 mt-2">Cancelar</a>
       </div>
     </div>
   </div>
 </form>
+</div><!-- /tab-nuevo -->
+
+<!-- ── Pestaña: Historial ─────────────────────────────────────────────── -->
+<div class="tab-pane {% if tab == 'historial' %}show active{% endif %}" id="tab-historial">
+
+  <!-- Filtros -->
+  <div class="form-card mb-3">
+    <form method="get" action="{{ url_for('productos.nuevo_ingreso_mercaderia') }}" class="row g-2 align-items-end">
+      <input type="hidden" name="tab" value="historial">
+      <div class="col-sm-3">
+        <label class="form-label small fw-semibold">Proveedor</label>
+        <select name="filtro_proveedor" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for p in proveedores %}
+          <option value="{{ p.id }}" {% if filtro_proveedor == p.id|string %}selected{% endif %}>
+            {{ p.nombre_completo }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small fw-semibold">Desde</label>
+        <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ filtro_fecha_desde }}">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small fw-semibold">Hasta</label>
+        <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ filtro_fecha_hasta }}">
+      </div>
+      <div class="col-sm-2">
+        <label class="form-label small fw-semibold">Forma de Pago</label>
+        <select name="filtro_forma_pago" class="form-select form-select-sm">
+          <option value="">Todas</option>
+          {% for val, label in formas_pago %}
+          <option value="{{ val }}" {% if filtro_forma_pago == val %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-sm-3 d-flex gap-2">
+        <button type="submit" class="btn btn-sm btn-primary flex-grow-1">
+          <i class="bi bi-search me-1"></i>Filtrar
+        </button>
+        <a href="{{ url_for('productos.nuevo_ingreso_mercaderia', tab='historial') }}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-x-circle"></i>
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Tabla de ingresos -->
+  <div class="table-card">
+    {% if ingresos %}
+    {% set total_ingresos = ingresos | sum(attribute='total') %}
+    <div class="d-flex justify-content-between align-items-center px-2 py-2 border-bottom mb-2">
+      <span class="text-muted small">{{ ingresos|length }} ingreso{% if ingresos|length != 1 %}s{% endif %} encontrado{% if ingresos|length != 1 %}s{% endif %}</span>
+      <span class="fw-semibold text-danger">Total: ${{ "%.2f"|format(total_ingresos) }}</span>
+    </div>
+    <div class="table-responsive">
+    <table class="table table-hover table-sm align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="text-muted">#</th>
+          <th>Fecha</th>
+          <th>Proveedor</th>
+          <th>Forma de Pago</th>
+          <th>Productos</th>
+          <th>Notas</th>
+          <th class="text-end">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for ing in ingresos %}
+      <tr>
+        <td class="text-muted small">{{ ing.id }}</td>
+        <td class="small">{{ ing.fecha.strftime('%d/%m/%Y %H:%M') }}</td>
+        <td>{{ ing.proveedor.nombre_completo if ing.proveedor else '<span class="text-muted">—</span>'|safe }}</td>
+        <td><span class="badge bg-secondary">{{ ing.forma_pago }}</span></td>
+        <td>
+          {% for item in ing.items %}
+          <span class="badge bg-light text-dark border me-1">{{ item.nombre_producto }} ×{{ item.cantidad }}</span>
+          {% endfor %}
+        </td>
+        <td class="text-muted small">{{ ing.notas or '' }}</td>
+        <td class="text-end fw-semibold text-danger">${{ "%.2f"|format(ing.total) }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% else %}
+    <div class="p-5 text-center text-muted">
+      <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+      No se encontraron ingresos con los filtros aplicados.
+    </div>
+    {% endif %}
+  </div>
+
+</div><!-- /tab-historial -->
+
+</div><!-- /tab-content -->
 
 <!-- Modal: Nuevo Producto -->
 <div class="modal fade" id="modalNuevoProducto" tabindex="-1" aria-labelledby="modalNuevoProductoLabel" aria-hidden="true">
