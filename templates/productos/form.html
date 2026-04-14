@@ -41,9 +41,17 @@
                    value="{{ producto.precio_compra if producto else '0' }}">
           </div>
           <div class="col-sm-6">
-            <label class="form-label fw-semibold">Precio de Venta ($) *</label>
+            <label class="form-label fw-semibold">Precio de Venta ($) * <small class="text-muted">(IVA incluido)</small></label>
             <input type="number" name="precio_venta" class="form-control" step="0.01" min="0" required
                    value="{{ producto.precio_venta if producto else '' }}">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">IVA incluido en el precio</label>
+            <select name="alicuota_iva" class="form-select">
+              <option value="21.0" {% if not producto or producto.alicuota_iva is none or producto.alicuota_iva == 21.0 %}selected{% endif %}>21%</option>
+              <option value="10.5" {% if producto and producto.alicuota_iva == 10.5 %}selected{% endif %}>10.5%</option>
+              <option value="0.0" {% if producto and producto.alicuota_iva == 0.0 %}selected{% endif %}>Exento / 0%</option>
+            </select>
           </div>
           {% if not producto %}
           <div class="col-sm-6">
@@ -76,9 +84,17 @@
             <textarea name="descripcion" class="form-control" rows="2">{{ producto.descripcion if producto else '' }}</textarea>
           </div>
           <div class="col-sm-6">
-            <label class="form-label fw-semibold">Precio ($) *</label>
+            <label class="form-label fw-semibold">Precio ($) * <small class="text-muted">(IVA incluido)</small></label>
             <input type="number" name="precio" class="form-control" step="0.01" min="0" required
                    value="{{ producto.precio if producto else '' }}">
+          </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold">IVA incluido en el precio</label>
+            <select name="alicuota_iva" class="form-select">
+              <option value="21.0" {% if not producto or producto.alicuota_iva is none or producto.alicuota_iva == 21.0 %}selected{% endif %}>21%</option>
+              <option value="10.5" {% if producto and producto.alicuota_iva == 10.5 %}selected{% endif %}>10.5%</option>
+              <option value="0.0" {% if producto and producto.alicuota_iva == 0.0 %}selected{% endif %}>Exento / 0%</option>
+            </select>
           </div>
           <div class="col-12">
             <div class="form-check">

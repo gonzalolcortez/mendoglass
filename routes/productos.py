@@ -82,6 +82,7 @@ def nuevo_producto():
             categoria_id=request.form.get('categoria_id') or None,
             precio_compra=float(request.form.get('precio_compra') or 0),
             precio_venta=float(request.form['precio_venta']),
+            alicuota_iva=float(request.form.get('alicuota_iva') or 21),
             stock_actual=int(request.form.get('stock_actual') or 0),
             stock_minimo=int(request.form.get('stock_minimo') or 5),
             unidad=request.form.get('unidad', 'unidad').strip(),
@@ -107,6 +108,7 @@ def editar_producto(id):
         prod.categoria_id = request.form.get('categoria_id') or None
         prod.precio_compra = float(request.form.get('precio_compra') or 0)
         prod.precio_venta = float(request.form['precio_venta'])
+        prod.alicuota_iva = float(request.form.get('alicuota_iva') or 21)
         prod.stock_minimo = int(request.form.get('stock_minimo') or 5)
         prod.unidad = request.form.get('unidad', 'unidad').strip()
         prod.activo = 'activo' in request.form
@@ -137,6 +139,7 @@ def nuevo_servicio():
             nombre=request.form['nombre'].strip(),
             descripcion=request.form.get('descripcion', '').strip(),
             precio=float(request.form['precio']),
+            alicuota_iva=float(request.form.get('alicuota_iva') or 21),
             activo='activo' in request.form,
         )
         db.session.add(serv)
@@ -155,6 +158,7 @@ def editar_servicio(id):
         serv.nombre = request.form['nombre'].strip()
         serv.descripcion = request.form.get('descripcion', '').strip()
         serv.precio = float(request.form['precio'])
+        serv.alicuota_iva = float(request.form.get('alicuota_iva') or 21)
         serv.activo = 'activo' in request.form
         db.session.commit()
         flash('Servicio actualizado.', 'success')

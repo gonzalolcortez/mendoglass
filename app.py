@@ -195,6 +195,42 @@ def _ensure_venta_items_columns(app):
     )
 
 
+def _ensure_productos_servicios_columns(app):
+    """Ensure productos and servicios tables have alicuota_iva column."""
+    required_by_table = {
+        'productos': {
+            'alicuota_iva': 'DOUBLE PRECISION NOT NULL DEFAULT 21',
+        },
+        'servicios': {
+            'alicuota_iva': 'DOUBLE PRECISION NOT NULL DEFAULT 21',
+        },
+    }
+
+    inspector = inspect(db.engine)
+    for table_name, columns in required_by_table.items():
+        if not inspector.has_table(table_name):
+            continue
+
+        existing_columns = {c['name'] for c in inspector.get_columns(table_name)}
+        missing_columns = [
+            (name, ddl)
+            for name, ddl in columns.items()
+            if name not in existing_columns
+        ]
+        if not missing_columns:
+            continue
+
+        with db.engine.begin() as conn:
+            for column_name, column_ddl in missing_columns:
+                conn.execute(text(f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_ddl}'))
+
+        app.logger.warning(
+            'Schema patched on startup: added missing %s columns: %s',
+            table_name,
+            ', '.join(name for name, _ in missing_columns),
+        )
+
+
 def _ensure_cuenta_corriente_indexes(app):
     """Ensure indexes exist for the heaviest current-account queries."""
     statements = [
@@ -360,7 +396,12 @@ def create_app():
             _ensure_venta_items_columns(app)
             _ensure_cuenta_corriente_columns(app)
             _ensure_cuenta_corriente_indexes(app)
-            sincronizar_movimientos_contables_automaticos()
+            _ensure_productos_servicios_columns(app)
+            skip_sync = os.environ.get('SKIP_STARTUP_CONTABLE_SYNC', 'false').lower() == 'true'
+            if skip_sync:
+                app.logger.info('Skipping startup accounting sync (SKIP_STARTUP_CONTABLE_SYNC=true).')
+            else:
+                sincronizar_movimientos_contables_automaticos()
         except SQLAlchemyError as e:
             app.logger.error('Could not apply runtime schema patch: %s', e)
 

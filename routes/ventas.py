@@ -297,6 +297,7 @@ def nueva():
             'nombre': p.nombre,
             'codigo_barras': p.codigo_barras or '',
             'precio_venta': p.precio_venta,
+            'alicuota_iva': p.alicuota_iva if p.alicuota_iva is not None else 21.0,
             'stock_actual': p.stock_actual,
             'categoria_id': p.categoria_id,
             'unidad': p.unidad or 'unidad',
@@ -304,7 +305,8 @@ def nueva():
         for p in productos_obj
     ]
     servicios_json = [
-        {'id': s.id, 'nombre': s.nombre, 'precio': s.precio}
+        {'id': s.id, 'nombre': s.nombre, 'precio': s.precio,
+         'alicuota_iva': s.alicuota_iva if s.alicuota_iva is not None else 21.0}
         for s in servicios_obj
     ]
 
@@ -334,6 +336,7 @@ def nueva_devolucion():
             'nombre': p.nombre,
             'codigo_barras': p.codigo_barras or '',
             'precio_venta': p.precio_venta,
+            'alicuota_iva': p.alicuota_iva if p.alicuota_iva is not None else 21.0,
             'stock_actual': p.stock_actual,
             'categoria_id': p.categoria_id,
             'unidad': p.unidad or 'unidad',
@@ -535,12 +538,12 @@ def guardar():
         item_tipo = it.get('tipo') or ('producto' if pid else 'libre')
 
         precio_bonif = precio * (1 - bonif / 100) if bonif else precio
-        if es_factura:
-            sub_neto = round(precio_bonif * cant, 2)
-            iva_monto = round(sub_neto * alicuota / 100, 2)
-            sub_total = round(sub_neto + iva_monto, 2)
+        # El precio ya incluye IVA; para FACTURA descomponemos neto e IVA
+        sub_total = round(precio_bonif * cant, 2)  # importe total con IVA
+        if es_factura and alicuota > 0:
+            sub_neto = round(sub_total / (1 + alicuota / 100), 2)
+            iva_monto = round(sub_total - sub_neto, 2)
         else:
-            sub_total = round(precio_bonif * cant, 2)
             sub_neto = sub_total
             iva_monto = 0.0
 

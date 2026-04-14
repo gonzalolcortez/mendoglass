@@ -5,13 +5,40 @@
 {% block extra_head %}
 <style>
   .items-table th, .items-table td { vertical-align: middle; }
-  .items-table input { min-width: 60px; }
+  .items-table input { min-width: 40px; }
+  .items-table { min-width: 780px; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .iva-badge { font-size: .7rem; }
   #resumen-iva td { font-size: .88rem; }
   .tipo-btn { cursor: pointer; }
   .tipo-card { border: 2px solid #dee2e6; border-radius: 10px; padding: 1rem; text-align: center; transition: border-color .2s, background .2s; }
   .tipo-card.selected { border-color: #0d6efd; background: #e8f0fe; }
   .tipo-card .bi { font-size: 1.8rem; display: block; margin-bottom: .4rem; }
+  #th-total-linea, td[id^="sub-total-"] { min-width: 100px; }
+  /* Ocultar columnas opcionales en pantallas < 1400px */
+  @media (max-width: 1399.98px) {
+    .col-opt { display: none !important; }
+  }
+  /* En laptops y resoluciones intermedias, ocultar Subtotal c/IVA para evitar recortes */
+  @media (max-width: 1700px) {
+    .col-factura-total { display: none !important; }
+  }
+
+  /* Por defecto, el resumen va debajo para dar todo el ancho a la tabla */
+  #venta-summary-col .form-card.sticky-top {
+    position: static !important;
+    top: auto !important;
+  }
+
+  /* Solo en pantallas muy anchas dejamos layout en 2 columnas */
+  @media (min-width: 1701px) {
+    #venta-main-col { flex: 0 0 auto; width: 75%; }
+    #venta-summary-col { flex: 0 0 auto; width: 25%; }
+    #venta-summary-col .form-card.sticky-top {
+      position: sticky !important;
+      top: 80px !important;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -40,7 +67,7 @@
 
   <div class="row g-3">
     <!-- ── Left column ── -->
-    <div class="col-lg-8">
+    <div class="col-12" id="venta-main-col">
 
       <!-- Datos del comprobante -->
       <div class="form-card mb-3">
@@ -164,16 +191,16 @@
           <table class="table table-sm items-table" id="items-table">
             <thead class="table-light">
               <tr>
-                <th style="width:60px">Código</th>
+                <th style="width:54px" class="col-opt">Código</th>
                 <th>Descripción</th>
-                <th style="width:60px" class="text-center">Cant.</th>
-                <th style="width:60px">Unidad</th>
-                <th style="width:90px" class="text-end" id="th-precio">P.Unit.</th>
-                <th style="width:65px" class="text-center">Bonif.%</th>
-                <th style="width:90px" class="text-end" id="th-subtotal">Subtotal</th>
-                <th style="width:70px" class="text-center factura-only" id="th-iva">IVA %</th>
-                <th style="width:90px" class="text-end factura-only" id="th-total-linea">Subtotal c/IVA</th>
-                <th style="width:30px"></th>
+                <th style="width:54px" class="text-center">Cant.</th>
+                <th style="width:56px" class="col-opt">Unidad</th>
+                <th style="width:84px" class="text-end" id="th-precio">P.Unit. c/IVA</th>
+                <th style="width:58px" class="text-center col-opt">Bonif.%</th>
+                <th style="width:84px" class="text-end" id="th-subtotal">Subtotal</th>
+                <th style="width:66px" class="text-center factura-only" id="th-iva">IVA %</th>
+                <th style="width:120px" class="text-end factura-only col-factura-total" id="th-total-linea">Subtotal c/IVA</th>
+                <th style="width:24px"></th>
               </tr>
             </thead>
             <tbody id="items-body">
@@ -189,7 +216,7 @@
     </div>
 
     <!-- ── Right column: summary ── -->
-    <div class="col-lg-4">
+    <div class="col-12" id="venta-summary-col">
       <div class="form-card sticky-top" style="top:80px">
         <div class="section-title" id="resumen-title">Resumen</div>
 
@@ -267,7 +294,7 @@ function onTipoChange() {
 
   document.getElementById('resumen-title').textContent = esFactura ? 'Resumen' : 'Resumen de la Nota de Venta';
   document.getElementById('lbl-res-neto').textContent = esFactura ? 'Neto gravado:' : 'Subtotal:';
-  document.getElementById('th-precio').textContent = esFactura ? 'P.Unit. Neto' : 'P.Unit. Venta';
+  document.getElementById('th-precio').textContent = 'P.Unit. c/IVA';
   document.getElementById('th-subtotal').textContent = esFactura ? 'Subtotal Neto' : 'Subtotal';
 
   const puntoVenta = document.querySelector('[name="punto_venta"]');
@@ -319,9 +346,11 @@ function poblarItems() {
   }
   lista.forEach(obj => {
     const precio = tipo === 'producto' ? obj.precio_venta : obj.precio;
+    const alicuota_iva = obj.alicuota_iva ?? 21.0;
     const opt = document.createElement('option');
     opt.value = obj.id;
     opt.dataset.precio = precio;
+    opt.dataset.alicuota = alicuota_iva;
     opt.dataset.codigo = obj.codigo_barras || '';
     opt.dataset.unidad = obj.unidad || 'unidad';
     opt.dataset.nombre = obj.nombre;
@@ -339,6 +368,15 @@ function toggleControls() {
 
 poblarItems();
 toggleControls();
+
+// Auto-fill IVA rate when product/service is selected
+selItem.addEventListener('change', () => {
+  const opt = selItem.options[selItem.selectedIndex];
+  if (opt && opt.dataset.alicuota) {
+    const selAlicuota = document.getElementById('sel-alicuota');
+    selAlicuota.value = opt.dataset.alicuota;
+  }
+});
 
 // ── Barcode ──
 document.getElementById('inp-barcode').addEventListener('keydown', e => {
@@ -380,9 +418,14 @@ function agregarItem() {
   const unidad = opt.dataset.unidad || 'unidad';
   const nombre = opt.dataset.nombre || opt.textContent.split(' — ')[0];
   const cant = parseFloat(document.getElementById('sel-cant').value) || 1;
-  const alicuota = esFacturaActual()
-    ? (parseFloat(document.getElementById('sel-alicuota').value) || 21)
-    : 0;
+  // Use product's own alicuota_iva; for NOTA_VENTA alicuota is stored but not applied
+  const alicuota = parseFloat(opt.dataset.alicuota || document.getElementById('sel-alicuota').value || 21) || 0;
+
+  // sync the quick-add selector so user sees the rate
+  document.getElementById('sel-alicuota').value = alicuota;
+
+  const subTotal = precio * cant;  // total WITH IVA (what customer pays)
+  const subNeto = (esFacturaActual() && alicuota > 0) ? subTotal / (1 + alicuota / 100) : subTotal;
 
   document.getElementById('empty-row')?.remove();
   const tbody = document.getElementById('items-body');
@@ -391,41 +434,41 @@ function agregarItem() {
   const tr = document.createElement('tr');
   tr.id = 'row-' + rowId;
   tr.innerHTML = `
-    <td>
+    <td class="col-opt">
       <input type="hidden" name="item_tipo[]" value="${tipo}">
       <input type="hidden" name="item_producto_id[]" value="${tipo === 'producto' ? id : ''}">
       <input type="hidden" name="item_servicio_id[]" value="${tipo === 'servicio' ? id : ''}">
-      <input type="text" name="item_codigo[]" class="form-control form-control-sm" value="${codigo}" style="width:70px">
+      <input type="text" name="item_codigo[]" class="form-control form-control-sm" value="${codigo}" style="width:58px">
     </td>
     <td>
-      <input type="text" name="item_descripcion[]" class="form-control form-control-sm" value="${nombre}" style="min-width:140px">
+      <input type="text" name="item_descripcion[]" class="form-control form-control-sm" value="${nombre}" style="min-width:96px">
     </td>
     <td class="text-center">
-      <input type="number" name="item_cantidad[]" class="form-control form-control-sm text-center row-field"
-             value="${cant}" min="0.01" step="0.01" style="width:65px" data-row="${rowId}" onchange="calcRow(${rowId})">
+            <input type="number" name="item_cantidad[]" class="form-control form-control-sm text-center row-field"
+              value="${cant}" min="0.01" step="0.01" style="width:52px" data-row="${rowId}" onchange="calcRow(${rowId})">
     </td>
-    <td>
-      <input type="text" name="item_unidad[]" class="form-control form-control-sm" value="${unidad}" style="width:65px">
+    <td class="col-opt">
+      <input type="text" name="item_unidad[]" class="form-control form-control-sm" value="${unidad}" style="width:56px">
     </td>
     <td class="text-end">
-      <input type="number" name="item_precio[]" class="form-control form-control-sm text-end row-field"
-             value="${precio.toFixed(2)}" min="0" step="0.01" style="width:90px" data-row="${rowId}" onchange="calcRow(${rowId})">
+            <input type="number" name="item_precio[]" class="form-control form-control-sm text-end row-field"
+              value="${precio.toFixed(2)}" min="0" step="0.01" style="width:80px" data-row="${rowId}" onchange="calcRow(${rowId})">
     </td>
-    <td class="text-center">
-      <input type="number" name="item_bonificacion[]" class="form-control form-control-sm text-center row-field"
-             value="0" min="0" max="100" step="0.01" style="width:65px" data-row="${rowId}" onchange="calcRow(${rowId})">
+    <td class="text-center col-opt">
+            <input type="number" name="item_bonificacion[]" class="form-control form-control-sm text-center row-field"
+              value="0" min="0" max="100" step="0.01" style="width:50px" data-row="${rowId}" onchange="calcRow(${rowId})">
     </td>
-    <td class="text-end" id="sub-neto-${rowId}">$${(precio*cant).toFixed(2)}</td>
+    <td class="text-end" id="sub-neto-${rowId}">$${subNeto.toFixed(2)}</td>
     <td class="text-center factura-only ${!esFacturaActual() ? 'd-none' : ''}" id="cell-iva-${rowId}">
-      <select name="item_alicuota[]" class="form-select form-select-sm" style="width:75px" data-row="${rowId}" onchange="calcRow(${rowId})" ${!esFacturaActual() ? 'disabled' : ''}>
+      <select name="item_alicuota[]" class="form-select form-select-sm" style="width:74px" data-row="${rowId}" onchange="calcRow(${rowId})" ${!esFacturaActual() ? 'disabled' : ''}>
         {% for tasa, lbl in alicuotas %}
         <option value="{{ tasa }}" ${alicuota === {{ tasa }} ? 'selected' : ''}>{{ lbl }}</option>
         {% endfor %}
       </select>
     </td>
-    <td class="text-end fw-semibold factura-only ${!esFacturaActual() ? 'd-none' : ''}" id="sub-total-${rowId}">$${(precio*cant*(1+alicuota/100)).toFixed(2)}</td>
+    <td class="text-end fw-semibold factura-only col-factura-total ${!esFacturaActual() ? 'd-none' : ''}" id="sub-total-${rowId}">$${subTotal.toFixed(2)}</td>
     <td>
-      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="quitarItem(${rowId})">
+      <button type="button" class="btn btn-sm btn-outline-danger py-0 px-1" style="min-width:22px" onclick="quitarItem(${rowId})">
         <i class="bi bi-x"></i>
       </button>
     </td>`;
@@ -441,11 +484,11 @@ function calcRow(rowId) {
   const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
   const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
   const alicuotaInput = tr.querySelector('[name="item_alicuota[]"]');
-  const alicuota = esFactura ? (parseFloat(alicuotaInput.value) || 0) : 0;
+  const alicuota = parseFloat(alicuotaInput?.value) || 0;
 
   const precioBonif = precio * (1 - bonif / 100);
-  const subNeto = precioBonif * cant;
-  const subTotal = esFactura ? (subNeto * (1 + alicuota / 100)) : subNeto;
+  const subTotal = precioBonif * cant;  // total WITH IVA
+  const subNeto = (esFactura && alicuota > 0) ? subTotal / (1 + alicuota / 100) : subTotal;
 
   if (alicuotaInput) {
     alicuotaInput.disabled = !esFactura;
@@ -481,15 +524,15 @@ function calcTotal() {
   let totalNeto = 0, totalIva = 0;
 
   rows.forEach(tr => {
-    const rowId = tr.id.replace('row-', '');
     const cant = parseFloat(tr.querySelector('[name="item_cantidad[]"]').value) || 0;
     const precio = parseFloat(tr.querySelector('[name="item_precio[]"]').value) || 0;
     const bonif = parseFloat(tr.querySelector('[name="item_bonificacion[]"]').value) || 0;
     const alicuotaInput = tr.querySelector('[name="item_alicuota[]"]');
-    const alicuota = esFactura ? (parseFloat(alicuotaInput?.value) || 0) : 0;
+    const alicuota = parseFloat(alicuotaInput?.value) || 0;
     const precioBonif = precio * (1 - bonif / 100);
-    const subNeto = precioBonif * cant;
-    const ivaMonto = esFactura ? (subNeto * alicuota / 100) : 0;
+    const subTotal = precioBonif * cant;  // total WITH IVA
+    const subNeto = (esFactura && alicuota > 0) ? subTotal / (1 + alicuota / 100) : subTotal;
+    const ivaMonto = subTotal - subNeto;
 
     totalNeto += subNeto;
     totalIva += ivaMonto;

@@ -183,6 +183,7 @@ class Producto(db.Model):
     categoria_id = db.Column(db.Integer, db.ForeignKey('categorias.id'))
     precio_compra = db.Column(db.Float, default=0.0)
     precio_venta = db.Column(db.Float, nullable=False)
+    alicuota_iva = db.Column(db.Float, default=21.0)  # IVA incluido en el precio: 0, 10.5 o 21
     stock_actual = db.Column(db.Integer, default=0)
     stock_minimo = db.Column(db.Integer, default=5)
     unidad = db.Column(db.String(20), default='unidad')
@@ -203,6 +204,7 @@ class Servicio(db.Model):
     nombre = db.Column(db.String(150), nullable=False)
     descripcion = db.Column(db.Text)
     precio = db.Column(db.Float, nullable=False)
+    alicuota_iva = db.Column(db.Float, default=21.0)  # IVA incluido en el precio: 0, 10.5 o 21
     activo = db.Column(db.Boolean, default=True)
 
     taller_servicios = db.relationship('TallerServicio', backref='servicio', lazy=True)
