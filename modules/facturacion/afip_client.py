@@ -364,6 +364,8 @@ class AfipClient:
                 auto_cert_path, _ = _autodescubrir_cert_key()
                 if auto_cert_path:
                     self.cuit = _extraer_cuit_desde_certificado(auto_cert_path)
+        # Normalizar CUIT: eliminar guiones y puntos (acepta "20-94530103-2" o "20945301032")
+        self.cuit = self.cuit.replace('-', '').replace('.', '').strip()
         self._token = None
         self._sign = None
         self._wsfe = None
