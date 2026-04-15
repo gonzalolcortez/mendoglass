@@ -291,7 +291,7 @@ class Venta(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     # FACTURA / NOTA_VENTA / NOTA_CREDITO
     tipo_comprobante = db.Column(db.String(20), default='NOTA_VENTA', nullable=False)
-    punto_venta = db.Column(db.Integer, default=1)
+    punto_venta = db.Column(db.Integer, default=10)
     numero_comprobante = db.Column(db.Integer)
     cliente_id = db.Column(db.Integer, db.ForeignKey('clientes.id'), nullable=True)
     fecha = db.Column(db.DateTime, default=datetime.now)
@@ -323,7 +323,7 @@ class Venta(db.Model):
             return f'#{self.id}'
         if self.tipo_comprobante in ('NOTA_VENTA', 'NOTA_CREDITO'):
             return f'{nro:04d}'
-        pv = self.punto_venta or 1
+        pv = self.punto_venta or 10
         if nro is not None:
             return f'{pv:04d}-{nro:08d}'
         return f'#{self.id}'
@@ -528,7 +528,7 @@ class Factura(db.Model):
     )
     # tipo_cbte: 1=Factura A, 6=Factura B, 11=Factura C, 3=N.Crédito A, 8=N.Crédito B, 13=N.Crédito C
     tipo_cbte = db.Column(db.Integer, nullable=False)
-    punto_vta = db.Column(db.Integer, nullable=False, default=1)
+    punto_vta = db.Column(db.Integer, nullable=False, default=10)
     numero = db.Column(db.Integer, nullable=True)
     fecha = db.Column(db.Date, nullable=False)
     subtotal = db.Column(db.Numeric(12, 2), default=0)

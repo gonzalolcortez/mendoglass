@@ -480,7 +480,7 @@ def guardar_devolucion():
 def guardar():
     tipo_comprobante = request.form.get('tipo_comprobante', 'NOTA_VENTA')
     es_factura = tipo_comprobante == 'FACTURA'
-    punto_venta = int(request.form.get('punto_venta', 1) or 1) if es_factura else None
+    punto_venta = int(request.form.get('punto_venta', 10) or 10) if es_factura else None
     cliente_id = request.form.get('cliente_id') or None
     forma_pago = normalizar_forma_pago(request.form.get('forma_pago', 'efectivo'))
     if forma_pago == 'cuenta_corriente' and not cliente_id:
